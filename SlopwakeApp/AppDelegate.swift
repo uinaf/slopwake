@@ -13,6 +13,7 @@ final class WakeServices {
     static let shared = WakeServices()
 
     let controller = CaffeinateController()
+    let automaticMonitor = AutomaticWakeMonitor()
 
     private init() {}
 }
