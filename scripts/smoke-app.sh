@@ -49,6 +49,9 @@ cleanup() {
   if [[ -n "${app_pid}" ]]; then
     wait "${app_pid}" 2>/dev/null || true
   fi
+  if [[ -n "${app_pid}" ]]; then
+    wait "${app_pid}" 2>/dev/null || true
+  fi
   if kill -0 "${fixture_pid}" 2>/dev/null; then
     kill -TERM "${fixture_pid}"
   fi
@@ -67,15 +70,10 @@ launch_and_assert() {
   local expected_display_assertions="$2"
 
   defaults write "${defaults_domain}" prevents-display-sleep -bool "${prevent_display_sleep}"
-  open -n "${app}"
-  local launch_deadline=$((SECONDS + 10))
-  while ((SECONDS < launch_deadline)); do
-    app_pid="$(pgrep -x slopwake || true)"
-    [[ -n "${app_pid}" ]] && break
-    sleep 0.01
-  done
-  if [[ -z "${app_pid}" ]]; then
-    echo "error: LaunchServices did not launch slopwake.app" >&2
+  "${binary}" &
+  app_pid=$!
+  if ! kill -0 "${app_pid}" 2>/dev/null; then
+    echo "error: slopwake.app exited during launch" >&2
     exit 1
   fi
 
@@ -94,22 +92,30 @@ launch_and_assert() {
     exit 1
   fi
 
-  local assertions
-  assertions="$(pmset -g assertions)"
-  local base_assertion_count
-  base_assertion_count="$(
-    grep "pid ${caffeinate_pid}(caffeinate)" <<<"${assertions}" |
-      grep -Ec 'Prevent(DiskIdle|SystemSleep|UserIdleSystemSleep)' || true
-  )"
+  local assertions=""
+  local base_assertion_count=0
+  local display_assertion_count=0
+  local assertion_deadline=$((SECONDS + 10))
+  while ((SECONDS < assertion_deadline)); do
+    assertions="$(pmset -g assertions)"
+    base_assertion_count="$(
+      grep "pid ${caffeinate_pid}(caffeinate)" <<<"${assertions}" |
+        grep -Ec 'Prevent(DiskIdle|SystemSleep|UserIdleSystemSleep)' || true
+    )"
+    display_assertion_count="$(
+      grep "pid ${caffeinate_pid}(caffeinate)" <<<"${assertions}" |
+        grep -c 'PreventUserIdleDisplaySleep' || true
+    )"
+    if [[ "${base_assertion_count}" == 3 ]] &&
+      [[ "${display_assertion_count}" == "${expected_display_assertions}" ]]; then
+      break
+    fi
+    sleep 0.05
+  done
   if [[ "${base_assertion_count}" != 3 ]]; then
     echo "error: expected three base power assertions, found ${base_assertion_count}" >&2
     exit 1
   fi
-  local display_assertion_count
-  display_assertion_count="$(
-    grep "pid ${caffeinate_pid}(caffeinate)" <<<"${assertions}" |
-      grep -c 'PreventUserIdleDisplaySleep' || true
-  )"
   if [[ "${display_assertion_count}" != "${expected_display_assertions}" ]]; then
     echo "error: expected ${expected_display_assertions} display assertions, found ${display_assertion_count}" >&2
     exit 1
@@ -125,6 +131,7 @@ launch_and_assert() {
     echo "error: slopwake did not terminate" >&2
     exit 1
   fi
+  wait "${app_pid}" 2>/dev/null || true
 
   local caffeinate_exit_deadline=$((SECONDS + 10))
   while ((SECONDS < caffeinate_exit_deadline)); do

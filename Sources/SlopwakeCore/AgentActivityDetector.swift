@@ -227,9 +227,13 @@ public struct AgentActivityDetector: Sendable {
         return resolveHoldState(sources: sources, at: now)
     }
 
-    public mutating func tickWithoutSnapshot(at now: MonotonicTime) -> AutomaticWakeState {
+    public mutating func tickWithoutSnapshot(
+        at now: MonotonicTime,
+        enabledSurfaces: Set<AgentSurface> = Set(AgentSurface.allCases)
+    ) -> AutomaticWakeState {
         var evidenceBySurface: [AgentSurface: AgentActivityEvidence] = [:]
-        for (sessionKey, session) in sessions {
+        for (sessionKey, session) in sessions
+        where enabledSurfaces.contains(sessionKey.surface) {
             if let evidence = retainedEvidence(for: session, at: now) {
                 evidenceBySurface[sessionKey.surface] = stronger(
                     evidenceBySurface[sessionKey.surface],

@@ -69,7 +69,10 @@ final class AutomaticWakeMonitor {
                 enabledSurfaces: enabledSurfaces
             )
         } else {
-            nextState = detector.tickWithoutSnapshot(at: now)
+            nextState = detector.tickWithoutSnapshot(
+                at: now,
+                enabledSurfaces: enabledSurfaces
+            )
         }
         guard nextState != state else {
             return

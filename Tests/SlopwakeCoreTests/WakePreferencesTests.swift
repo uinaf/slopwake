@@ -66,6 +66,20 @@ final class WakePreferencesTests: XCTestCase {
         XCTAssertNil(WakePreferences(batteryCutoffPercentage: 0).batteryCutoffPercentage)
     }
 
+    func testLoadingCurrentPreferencesDoesNotRewriteFutureSchemaVersion() {
+        withDefaults { defaults in
+            defaults.set(2, forKey: "preferences.schema-version")
+            defaults.set(false, forKey: "detector.codexCLI.enabled")
+
+            let loaded = WakePreferences.load(from: defaults)
+
+            XCTAssertFalse(loaded.enabledSurfaces.contains(.codexCLI))
+            XCTAssertEqual(defaults.integer(forKey: "preferences.schema-version"), 2)
+            loaded.save(to: defaults)
+            XCTAssertEqual(defaults.integer(forKey: "preferences.schema-version"), 2)
+        }
+    }
+
     private func withDefaults(_ operation: (UserDefaults) -> Void) {
         let suiteName = "dev.uinaf.slopwake.tests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {

@@ -1,6 +1,7 @@
 import Foundation
 
 public struct WakePreferences: Equatable, Sendable {
+    public static let currentSchemaVersion = 1
     public static let defaultBatteryCutoffPercentage = 15
     public static let supportedBatteryCutoffs: [Int?] = [nil, 5, 10, 15, 20, 25, 30]
 
@@ -55,13 +56,18 @@ public struct WakePreferences: Equatable, Sendable {
             batteryCutoffPercentage: cutoff,
             startsAtLogin: defaults.bool(forKey: Keys.startsAtLogin)
         )
-        preferences.save(to: defaults)
-        defaults.removeObject(forKey: Keys.legacyAutomaticEnabled)
+        if schemaVersion == 0, legacyAutomaticEnabled != nil {
+            preferences.save(to: defaults)
+            defaults.removeObject(forKey: Keys.legacyAutomaticEnabled)
+        }
         return preferences
     }
 
     public func save(to defaults: UserDefaults) {
-        defaults.set(1, forKey: Keys.schemaVersion)
+        defaults.set(
+            max(defaults.integer(forKey: Keys.schemaVersion), Self.currentSchemaVersion),
+            forKey: Keys.schemaVersion
+        )
         for surface in AgentSurface.allCases {
             defaults.set(enabledSurfaces.contains(surface), forKey: Keys.surface(surface))
         }

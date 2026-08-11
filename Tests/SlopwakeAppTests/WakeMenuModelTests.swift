@@ -57,6 +57,17 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testSuccessfulLoginItemChangePersistsTheLiveState() {
+        withModel { model, _, _, _, loginItem in
+            model.setStartsAtLogin(true)
+
+            XCTAssertEqual(loginItem.state, .enabled)
+            XCTAssertTrue(model.startsAtLogin)
+            XCTAssertTrue(model.preferences.startsAtLogin)
+            XCTAssertNil(model.loginItemMessage)
+        }
+    }
+
     private func withModel(
         automaticState: AutomaticWakeState = AutomaticWakeState(
             shouldHold: false,
