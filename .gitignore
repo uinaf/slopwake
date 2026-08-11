@@ -1,0 +1,9 @@
+.DS_Store
+.build/
+.swiftpm/
+.artifacts/
+DerivedData/
+*.xcresult
+*.xcuserstate
+xcuserdata/
+Slopwake.xcodeproj/
