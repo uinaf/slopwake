@@ -8,6 +8,8 @@ final class AutomaticWakeMonitor {
     private var detector: AgentActivityDetector
     private var pollingTask: Task<Void, Never>?
 
+    var enabledSurfaces = Set(AgentSurface.allCases)
+
     private(set) var state = AutomaticWakeState(
         shouldHold: false,
         sources: [],
@@ -63,7 +65,8 @@ final class AutomaticWakeMonitor {
             nextState = detector.update(
                 processes: snapshot.processes,
                 at: now,
-                unavailableProcessIdentifiers: snapshot.unavailableProcessIdentifiers
+                unavailableProcessIdentifiers: snapshot.unavailableProcessIdentifiers,
+                enabledSurfaces: enabledSurfaces
             )
         } else {
             nextState = detector.tickWithoutSnapshot(at: now)

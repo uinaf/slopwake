@@ -36,6 +36,62 @@ final class CaffeinateControllerTests: XCTestCase {
         XCTAssertNil(controller.processIdentifier)
     }
 
+    func testDisplayPreferenceSelectsTheExactCaffeinateFlags() throws {
+        var invocations: [[String]] = []
+        let process = FakeWakeProcess()
+        let controller = CaffeinateController(ownerPID: 42) { _, arguments in
+            invocations.append(arguments)
+            return process
+        }
+
+        XCTAssertTrue(try controller.start(preventDisplaySleep: true))
+        XCTAssertEqual(invocations, [["-dims", "-w", "42"]])
+    }
+
+    func testDisplayPreferenceChangeRestartsAfterTermination() async throws {
+        var invocations: [[String]] = []
+        var processes: [FakeWakeProcess] = []
+        let controller = CaffeinateController(ownerPID: 42) { _, arguments in
+            invocations.append(arguments)
+            let process = FakeWakeProcess(processIdentifier: Int32(7_001 + processes.count))
+            processes.append(process)
+            return process
+        }
+
+        XCTAssertTrue(try controller.start())
+        XCTAssertFalse(try controller.start(preventDisplaySleep: true))
+        XCTAssertEqual(processes.count, 1)
+        XCTAssertEqual(processes[0].terminateCount, 1)
+
+        let restarted = expectation(description: "display preference restart completed")
+        controller.stateChangeHandler = restarted.fulfill
+        processes[0].exit()
+        await fulfillment(of: [restarted], timeout: 1)
+
+        XCTAssertEqual(processes.count, 2)
+        XCTAssertEqual(invocations.last, ["-dims", "-w", "42"])
+        XCTAssertEqual(controller.processIdentifier, 7_002)
+    }
+
+    func testReplacingAnExitedChildDoesNotReenterAndLaunchTwice() throws {
+        var processes: [FakeWakeProcess] = []
+        let controller = CaffeinateController { _, _ in
+            let process = FakeWakeProcess(processIdentifier: Int32(7_001 + processes.count))
+            processes.append(process)
+            return process
+        }
+        controller.stateChangeHandler = {
+            _ = try? controller.start()
+        }
+
+        try controller.start()
+        processes[0].isRunning = false
+        XCTAssertTrue(try controller.start())
+
+        XCTAssertEqual(processes.count, 2)
+        XCTAssertEqual(controller.processIdentifier, 7_002)
+    }
+
     func testExitedProcessCanBeReplaced() async throws {
         var processes: [FakeWakeProcess] = []
         let controller = CaffeinateController { _, _ in

@@ -92,6 +92,15 @@ public struct AutomaticWakeState: Equatable, Sendable {
         self.sources = sources
         self.isCeilingLimited = isCeilingLimited
     }
+
+    public func restricted(to enabledSurfaces: Set<AgentSurface>) -> AutomaticWakeState {
+        let restrictedSources = sources.filter { enabledSurfaces.contains($0.surface) }
+        return AutomaticWakeState(
+            shouldHold: shouldHold && !restrictedSources.isEmpty,
+            sources: restrictedSources,
+            isCeilingLimited: isCeilingLimited && !restrictedSources.isEmpty
+        )
+    }
 }
 
 public struct AgentActivityDetector: Sendable {

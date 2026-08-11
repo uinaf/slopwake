@@ -37,6 +37,8 @@ targets:
     dependencies:
       - package: SlopwakeCore
         product: SlopwakeCore
+      - sdk: IOKit.framework
+      - sdk: ServiceManagement.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.uinaf.slopwake
@@ -50,6 +52,23 @@ targets:
         INFOPLIST_KEY_NSHighResolutionCapable: YES
         ONLY_ACTIVE_ARCH: NO
 
+  SlopwakeTests:
+    type: bundle.unit-test
+    platform: macOS
+    hostApplication: Slopwake
+    sources:
+      - path: Tests/SlopwakeAppTests
+    dependencies:
+      - target: Slopwake
+      - package: SlopwakeCore
+        product: SlopwakeCore
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/slopwake.app/Contents/MacOS/slopwake"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.uinaf.slopwake.tests
+
 schemes:
   Slopwake:
     build:
@@ -57,3 +76,7 @@ schemes:
         Slopwake: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - SlopwakeTests

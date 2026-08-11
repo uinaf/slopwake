@@ -4,6 +4,8 @@ import SlopwakeCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
+        WakeServices.shared.automaticMonitor.stop()
+        WakeServices.shared.batteryMonitor.stop()
         WakeServices.shared.controller.stop()
     }
 }
@@ -14,6 +16,9 @@ final class WakeServices {
 
     let controller = CaffeinateController()
     let automaticMonitor = AutomaticWakeMonitor()
+    let batteryMonitor = BatteryMonitor()
+    let preferences = WakePreferencesStore()
+    let loginItemController = LoginItemController()
 
     private init() {}
 }

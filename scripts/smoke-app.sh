@@ -3,6 +3,7 @@ set -euo pipefail
 
 app="DerivedData/Build/Products/Release/slopwake.app"
 binary="${app}/Contents/MacOS/slopwake"
+defaults_domain="dev.uinaf.slopwake"
 
 architectures="$(lipo -archs "${binary}")"
 [[ " ${architectures} " == *" arm64 "* ]] || {
@@ -25,6 +26,11 @@ if pgrep -x slopwake >/dev/null; then
 fi
 
 fixture_root="$(mktemp -d .artifacts/slopwake-smoke.XXXXXX)"
+defaults_backup="${fixture_root}/preferences.plist"
+had_defaults=false
+if defaults export "${defaults_domain}" "${defaults_backup}" >/dev/null 2>&1; then
+  had_defaults=true
+fi
 xcrun clang scripts/fixtures/headless-agent.c -o "${fixture_root}/codex"
 "${fixture_root}/codex" &
 fixture_pid=$!
@@ -47,63 +53,91 @@ cleanup() {
     kill -TERM "${fixture_pid}"
   fi
   wait "${fixture_pid}" 2>/dev/null || true
+  if [[ "${had_defaults}" == true ]]; then
+    defaults import "${defaults_domain}" "${defaults_backup}" >/dev/null
+  else
+    defaults delete "${defaults_domain}" >/dev/null 2>&1 || true
+  fi
   rm -rf "${fixture_root}"
 }
 trap cleanup EXIT
 
-"${binary}" &
-app_pid=$!
-sleep 1
-app_state="$(ps -p "${app_pid}" -o state= 2>/dev/null | tr -d ' ' || true)"
-if [[ -z "${app_state}" || "${app_state}" == Z* ]]; then
-  echo "error: slopwake exited during launch" >&2
-  exit 1
-fi
-caffeinate_deadline=$((SECONDS + 10))
-while ((SECONDS < caffeinate_deadline)); do
-  caffeinate_pid="$(pgrep -P "${app_pid}" caffeinate || true)"
-  [[ -n "${caffeinate_pid}" ]] && break
-  sleep 0.05
-done
-if [[ -z "${caffeinate_pid}" ]]; then
-  echo "error: automatic detection did not start caffeinate" >&2
-  exit 1
-fi
-if ! kill -0 "${fixture_pid}" 2>/dev/null; then
-  echo "error: headless detector fixture exited before verification" >&2
-  exit 1
-fi
+launch_and_assert() {
+  local prevent_display_sleep="$1"
+  local expected_display_assertions="$2"
 
-assertion_count="$(
-  pmset -g assertions |
-    grep "pid ${caffeinate_pid}(caffeinate)" |
-    grep -Ec 'Prevent(DiskIdle|SystemSleep|UserIdleSystemSleep)' || true
-)"
-if [[ "${assertion_count}" != 3 ]]; then
-  echo "error: expected three caffeinate power assertions, found ${assertion_count}" >&2
-  exit 1
-fi
-terminate_app
-termination_deadline=$((SECONDS + 10))
-while ((SECONDS < termination_deadline)); do
-  kill -0 "${app_pid}" 2>/dev/null || break
-  sleep 0.01
-done
-
-if kill -0 "${app_pid}" 2>/dev/null; then
-  echo "error: slopwake did not terminate" >&2
+  defaults write "${defaults_domain}" prevents-display-sleep -bool "${prevent_display_sleep}"
+  open -n "${app}"
+  local launch_deadline=$((SECONDS + 10))
+  while ((SECONDS < launch_deadline)); do
+    app_pid="$(pgrep -x slopwake || true)"
+    [[ -n "${app_pid}" ]] && break
+    sleep 0.01
+  done
+  if [[ -z "${app_pid}" ]]; then
+    echo "error: LaunchServices did not launch slopwake.app" >&2
     exit 1
-fi
+  fi
 
-caffeinate_exit_deadline=$((SECONDS + 10))
-while ((SECONDS < caffeinate_exit_deadline)); do
-  kill -0 "${caffeinate_pid}" 2>/dev/null || break
-  sleep 0.01
-done
-if kill -0 "${caffeinate_pid}" 2>/dev/null; then
-  echo "error: automatic caffeinate survived app termination" >&2
-  exit 1
-fi
-wait "${app_pid}" 2>/dev/null || true
-cleanup
-trap - EXIT
+  local caffeinate_deadline=$((SECONDS + 10))
+  while ((SECONDS < caffeinate_deadline)); do
+    caffeinate_pid="$(pgrep -P "${app_pid}" caffeinate || true)"
+    [[ -n "${caffeinate_pid}" ]] && break
+    sleep 0.05
+  done
+  if [[ -z "${caffeinate_pid}" ]]; then
+    echo "error: automatic detection did not start caffeinate" >&2
+    exit 1
+  fi
+  if ! kill -0 "${fixture_pid}" 2>/dev/null; then
+    echo "error: headless detector fixture exited before verification" >&2
+    exit 1
+  fi
+
+  local assertions
+  assertions="$(pmset -g assertions)"
+  local base_assertion_count
+  base_assertion_count="$(
+    grep "pid ${caffeinate_pid}(caffeinate)" <<<"${assertions}" |
+      grep -Ec 'Prevent(DiskIdle|SystemSleep|UserIdleSystemSleep)' || true
+  )"
+  if [[ "${base_assertion_count}" != 3 ]]; then
+    echo "error: expected three base power assertions, found ${base_assertion_count}" >&2
+    exit 1
+  fi
+  local display_assertion_count
+  display_assertion_count="$(
+    grep "pid ${caffeinate_pid}(caffeinate)" <<<"${assertions}" |
+      grep -c 'PreventUserIdleDisplaySleep' || true
+  )"
+  if [[ "${display_assertion_count}" != "${expected_display_assertions}" ]]; then
+    echo "error: expected ${expected_display_assertions} display assertions, found ${display_assertion_count}" >&2
+    exit 1
+  fi
+
+  terminate_app
+  local termination_deadline=$((SECONDS + 10))
+  while ((SECONDS < termination_deadline)); do
+    kill -0 "${app_pid}" 2>/dev/null || break
+    sleep 0.01
+  done
+  if kill -0 "${app_pid}" 2>/dev/null; then
+    echo "error: slopwake did not terminate" >&2
+    exit 1
+  fi
+
+  local caffeinate_exit_deadline=$((SECONDS + 10))
+  while ((SECONDS < caffeinate_exit_deadline)); do
+    kill -0 "${caffeinate_pid}" 2>/dev/null || break
+    sleep 0.01
+  done
+  if kill -0 "${caffeinate_pid}" 2>/dev/null; then
+    echo "error: automatic caffeinate survived app termination" >&2
+    exit 1
+  fi
+  app_pid=""
+  caffeinate_pid=""
+}
+
+launch_and_assert false 0
+launch_and_assert true 1

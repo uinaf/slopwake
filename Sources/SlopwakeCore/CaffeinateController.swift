@@ -35,7 +35,8 @@ public final class CaffeinateController {
     private var process: (any WakeProcess)?
     private var activeProcessToken: UUID?
     private var requestedTerminationToken: UUID?
-    private var startAfterTermination = false
+    private var preventsDisplaySleep = false
+    private var pendingStartPreventsDisplaySleep: Bool?
 
     public var stateChangeHandler: (() -> Void)?
     public var unexpectedTerminationHandler: (() -> Void)?
@@ -68,29 +69,39 @@ public final class CaffeinateController {
     }
 
     @discardableResult
-    public func start() throws -> Bool {
+    public func start(preventDisplaySleep: Bool = false) throws -> Bool {
         if let process {
             if process.isRunning {
-                guard requestedTerminationToken == activeProcessToken,
-                      activeProcessToken != nil else {
-                    return false
+                if requestedTerminationToken == activeProcessToken,
+                   activeProcessToken != nil {
+                    pendingStartPreventsDisplaySleep = preventDisplaySleep
+                    process.forceTerminate()
+                } else {
+                    if preventsDisplaySleep != preventDisplaySleep {
+                        pendingStartPreventsDisplaySleep = preventDisplaySleep
+                        _ = stop()
+                    }
                 }
-                startAfterTermination = true
-                process.forceTerminate()
                 return false
             }
             if let activeProcessToken = self.activeProcessToken {
-                processDidTerminate(token: activeProcessToken)
+                _ = clearProcess(token: activeProcessToken)
+                pendingStartPreventsDisplaySleep = nil
             }
         }
 
+        var arguments = ["-ims", "-w", String(ownerPID)]
+        if preventDisplaySleep {
+            arguments[0] = "-dims"
+        }
         let newProcess = processFactory(
             URL(fileURLWithPath: "/usr/bin/caffeinate"),
-            ["-ims", "-w", String(ownerPID)]
+            arguments
         )
         let processToken = UUID()
         process = newProcess
         activeProcessToken = processToken
+        preventsDisplaySleep = preventDisplaySleep
         newProcess.setTerminationHandler { [weak self] in
             Task { @MainActor [weak self] in
                 self?.processDidTerminate(token: processToken)
@@ -115,7 +126,7 @@ public final class CaffeinateController {
 
         guard let activeProcessToken,
               requestedTerminationToken != activeProcessToken else {
-            startAfterTermination = false
+            pendingStartPreventsDisplaySleep = nil
             return false
         }
 
@@ -143,28 +154,34 @@ public final class CaffeinateController {
     }
 
     private func processDidTerminate(token: UUID) {
-        guard activeProcessToken == token else {
+        guard let wasRequested = clearProcess(token: token) else {
             return
         }
+        let pendingStartPreventsDisplaySleep = pendingStartPreventsDisplaySleep
+        self.pendingStartPreventsDisplaySleep = nil
+        var restartFailed = false
+        if let pendingStartPreventsDisplaySleep {
+            do {
+                try start(preventDisplaySleep: pendingStartPreventsDisplaySleep)
+            } catch {
+                restartFailed = true
+            }
+        }
+        if !wasRequested || restartFailed {
+            unexpectedTerminationHandler?()
+        }
+        stateChangeHandler?()
+    }
 
+    private func clearProcess(token: UUID) -> Bool? {
+        guard activeProcessToken == token else {
+            return nil
+        }
         process?.waitUntilExit()
         let wasRequested = requestedTerminationToken == token
         process = nil
         activeProcessToken = nil
         requestedTerminationToken = nil
-        let shouldStart = startAfterTermination
-        startAfterTermination = false
-        var restartFailed = false
-        if shouldStart {
-            do {
-                try start()
-            } catch {
-                restartFailed = true
-            }
-        }
-        stateChangeHandler?()
-        if !wasRequested || restartFailed {
-            unexpectedTerminationHandler?()
-        }
+        return wasRequested
     }
 }

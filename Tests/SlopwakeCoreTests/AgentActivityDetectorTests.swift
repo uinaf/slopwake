@@ -377,6 +377,32 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertTrue(state.sources.isEmpty)
     }
 
+    func testAutomaticStateCanBeRestrictedImmediatelyAfterPreferenceChange() {
+        let state = AutomaticWakeState(
+            shouldHold: true,
+            sources: [
+                AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
+                AutomaticWakeSource(surface: .claudeCLI, evidence: .recentActivity),
+            ],
+            isCeilingLimited: false
+        )
+
+        XCTAssertEqual(
+            state.restricted(to: Set([.claudeCLI])),
+            AutomaticWakeState(
+                shouldHold: true,
+                sources: [
+                    AutomaticWakeSource(surface: .claudeCLI, evidence: .recentActivity),
+                ],
+                isCeilingLimited: false
+            )
+        )
+        XCTAssertEqual(
+            state.restricted(to: []),
+            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+        )
+    }
+
     private func time(_ seconds: UInt64) -> MonotonicTime {
         MonotonicTime(seconds: seconds)
     }

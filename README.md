@@ -2,10 +2,9 @@
 
 Keep your slopshop awake.
 
-`slopwake` is a native macOS 26+ menu-bar app. This first tracer bullet owns a
-single `/usr/bin/caffeinate -ims` child so a user can start and stop a wake hold
-without administrator access. The child also watches the app process and exits
-if the app crashes.
+`slopwake` is a native macOS 26+ menu-bar app. It owns one bounded
+`/usr/bin/caffeinate` child for the union of automatic agent activity and manual
+wake holds. The child watches the app process and exits if the app crashes.
 
 ## Development
 
@@ -31,14 +30,20 @@ make project
 open Slopwake.xcodeproj
 ```
 
-## Manual wake-hold check
+## Controls and safety
 
-1. Record the baseline with `pmset -g assertions`.
-2. Launch `DerivedData/Build/Products/Release/slopwake.app`.
-3. Choose **Keep Awake** from the menu-bar item.
-4. Confirm `pmset -g assertions` reports the `caffeinate` assertions.
-5. Choose **Allow Sleep** and confirm the assertions disappear.
-6. Start another hold, quit `slopwake`, and confirm no child or assertion remains.
+The menu offers 30-minute, one-hour, and eight-hour manual holds. Automatic
+detection can be paused for 30 minutes, one hour, or until resumed. Each of the
+six detector surfaces can be enabled independently.
+
+Display sleep remains allowed by default (`caffeinate -ims`). The display option
+switches the owned child to `caffeinate -dims`. On battery power, demand is
+released at the configured cutoff, which defaults to 15% and can be disabled.
+Start at Login is opt-in through the macOS Service Management API.
+
+Only preferences are stored in `UserDefaults`. Manual timers, pause timers,
+process identities, activity evidence, and history are memory-only and reset
+when the app exits.
 
 The system bolt is temporary development artwork and is not a publishable
 product mark.
