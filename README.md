@@ -1,95 +1,52 @@
 # slopwake
 
-Keep your slopshop awake.
+Keep your Mac awake while supported coding agents work, without an unbounded
+wake lock.
 
-`slopwake` is a native macOS 26+ menu-bar app. It owns one bounded
-`/usr/bin/caffeinate` child for the union of automatic agent activity and manual
-wake holds. The child watches the app process and exits if the app crashes.
+`slopwake` is a native macOS 26+ menu-bar app. It combines automatic agent
+activity with bounded manual holds and owns a single `/usr/bin/caffeinate`
+child for the resulting demand.
 
-## Development
+## Use
 
-Requirements:
+The menu exposes the current wake state and its active sources.
 
-- macOS 26+
-- Xcode 26+
+- Start a manual hold for 30 minutes, one hour, or eight hours.
+- Pause automatic holds for 30 minutes, one hour, or until resumed.
+- Enable Codex, Claude, and Cursor desktop or CLI detection independently.
+- Allow display sleep, or keep the display awake while a hold is active.
+- Set a battery cutoff from 5% to 30%, disable the cutoff, or keep the 15%
+  default.
+- Opt into Start at Login.
 
-Run the core tests, build the universal app, inspect both architectures, apply
-and verify an ad-hoc hardened-runtime signature, then launch and terminate the
-Release executable:
+Automatic holds expire after 30 quiet minutes. A continuous automatic hold is
+limited to eight hours and rearms after its activity becomes idle.
 
-```sh
-make verify
-```
+## Safety and privacy
 
-The project generator downloads a pinned XcodeGen release into the ignored
-`.artifacts` directory and verifies its SHA-256 digest. Open the generated
-project with:
+Manual and automatic demand share one wake policy and one child process. The
+child exits with the app, battery policy can release it, and display sleep stays
+enabled by default.
 
-```sh
-make project
-open Slopwake.xcodeproj
-```
+Only preferences persist. Manual timers, pause timers, detected processes, and
+activity state reset when the app exits.
 
-## Controls and safety
+Detection uses process identity, parent relationships, terminal presence, and
+cumulative CPU counters. It does not inspect prompts, transcripts, files,
+windows, or network traffic.
 
-The menu offers 30-minute, one-hour, and eight-hour manual holds. Automatic
-detection can be paused for 30 minutes, one hour, or until resumed. Each of the
-six detector surfaces can be enabled independently.
+## Build from source
 
-Display sleep remains allowed by default (`caffeinate -ims`). The display option
-switches the owned child to `caffeinate -dims`. On battery power, demand is
-released at the configured cutoff, which defaults to 15% and can be disabled.
-Start at Login is opt-in through the macOS Service Management API.
+Development requires macOS 26+ and Xcode 26+. See [Contributing](CONTRIBUTING.md)
+for setup and verification commands.
 
-Only preferences are stored in `UserDefaults`. Manual timers, pause timers,
-process identities, activity evidence, and history are memory-only and reset
-when the app exits.
+## Documentation
 
-The system bolt is temporary development artwork and is not a publishable
-product mark.
-
-## Automatic detection
-
-`slopwake` independently watches Codex Desktop/CLI, Claude Desktop/CLI, and
-Cursor Desktop/CLI. Headless CLI processes hold for their lifetime. Interactive
-CLI and desktop surfaces arm only after their public CPU counters advance;
-Claude Desktop may also use the lifetime of its descendant local-agent process.
-Recent activity expires after 30 quiet minutes. A continuous automatic hold is
-capped at eight hours and rearms only after the evidence becomes idle first.
-
-This is deliberately best-effort inference, not exact active-turn detection.
-The sampler keeps only process IDs plus start times, parent relationships,
-executable names, bundle identifiers, terminal presence, and cumulative CPU
-counters in memory. It does not read arguments, prompts, transcripts,
-databases, logs, sockets, window text, workspace names, or file contents.
-
-## Notarized smoke build
-
-An authorized workstation can consume the adjacent private `uinaf/vault`
-payload through a process boundary and produce a Developer ID-signed, notarized,
-stapled smoke artifact:
-
-```sh
-make build
-sops exec-env --same-process \
-  ../vault/secrets/shared/uinaf-macos-release-signing.sops.json \
-  'make notarized-smoke'
-```
-
-The build runs before the release credentials enter the environment. The
-notarization command verifies a checksum-pinned `rcodesign` archive on every
-run, writes only a fully validated app and ZIP below ignored `.artifacts`, and
-removes all decoded certificate, certificate-password, and notary-key material
-before returning. It does not import the signing identity into a macOS
-keychain.
-
-## Release gates
-
-A release still requires a universal Developer ID signature, hardened-runtime
-verification, Apple notarization and stapling, Gatekeeper acceptance, and a
-launch plus wake-hold check from `~/Applications` on the managed work Mac. An
-MDM failure is a stop condition, not a reason to bypass policy.
+- [Architecture](docs/ARCHITECTURE.md) explains detection, policy, persistence,
+  and process ownership.
+- [Release workflow](docs/RELEASING.md) covers signing, notarization, and release
+  artifacts.
 
 ## License
 
-MIT
+[MIT](LICENSE)

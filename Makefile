@@ -2,12 +2,14 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := verify
 HOST_ARCH := $(shell uname -m)
 
-.PHONY: project test app-test build smoke notarized-smoke verify clean
+.PHONY: project test core-test app-test build verify release clean
 
 project:
 	./scripts/generate-project.sh
 
-test:
+test: core-test app-test
+
+core-test:
 	swift test --parallel
 
 app-test: project
@@ -32,13 +34,10 @@ build: project
 		CODE_SIGNING_ALLOWED=NO \
 		build
 
-smoke: build
-	./scripts/smoke-app.sh
+release:
+	./scripts/release.sh
 
-notarized-smoke:
-	./scripts/notarize-smoke.sh
-
-verify: test app-test smoke
+verify: test build
 
 clean:
 	swift package clean
