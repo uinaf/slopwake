@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := verify
 
-.PHONY: project test build verify clean
+.PHONY: project test build smoke verify clean
 
 project:
 	./scripts/generate-project.sh
@@ -19,7 +19,10 @@ build: project
 		CODE_SIGNING_ALLOWED=NO \
 		build
 
-verify: test build
+smoke: build
+	./scripts/smoke-app.sh
+
+verify: test smoke
 
 clean:
 	swift package clean

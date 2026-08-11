@@ -14,7 +14,9 @@ Requirements:
 - macOS 26+
 - Xcode 26+
 
-Run the core tests and build the unsigned universal app:
+Run the core tests, build the universal app, inspect both architectures, apply
+and verify an ad-hoc hardened-runtime signature, then launch and terminate the
+real app bundle:
 
 ```sh
 make verify

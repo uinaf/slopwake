@@ -7,12 +7,17 @@ public protocol WakeProcess: AnyObject {
     func run() throws
     func setTerminationHandler(_ handler: @escaping @Sendable () -> Void)
     func terminate()
+    func forceTerminate()
     func waitUntilExit()
 }
 
 extension Process: WakeProcess {
     public func setTerminationHandler(_ handler: @escaping @Sendable () -> Void) {
         terminationHandler = { _ in handler() }
+    }
+
+    public func forceTerminate() {
+        kill(processIdentifier, SIGKILL)
     }
 }
 
@@ -22,13 +27,17 @@ public typealias WakeProcessFactory = @MainActor (URL, [String]) -> any WakeProc
 public final class CaffeinateController {
     private let ownerPID: Int32
     private let processFactory: WakeProcessFactory
+    private let terminationGracePeriod: Duration
     private var process: (any WakeProcess)?
     private var activeProcessToken: UUID?
+    private var requestedTerminationToken: UUID?
 
+    public var stateChangeHandler: (() -> Void)?
     public var unexpectedTerminationHandler: (() -> Void)?
 
     public init(
         ownerPID: Int32 = ProcessInfo.processInfo.processIdentifier,
+        terminationGracePeriod: Duration = .seconds(2),
         processFactory: @escaping WakeProcessFactory = { executableURL, arguments in
             let process = Process()
             process.executableURL = executableURL
@@ -37,6 +46,7 @@ public final class CaffeinateController {
         }
     ) {
         self.ownerPID = ownerPID
+        self.terminationGracePeriod = terminationGracePeriod
         self.processFactory = processFactory
     }
 
@@ -54,11 +64,15 @@ public final class CaffeinateController {
 
     @discardableResult
     public func start() throws -> Bool {
-        if process?.isRunning == true {
-            return false
+        if let process {
+            if process.isRunning {
+                return false
+            }
+            if let activeProcessToken {
+                processDidTerminate(token: activeProcessToken)
+            }
         }
 
-        process = nil
         let newProcess = processFactory(
             URL(fileURLWithPath: "/usr/bin/caffeinate"),
             ["-ims", "-w", String(ownerPID)]
@@ -88,13 +102,32 @@ public final class CaffeinateController {
             return false
         }
 
-        activeProcessToken = nil
-        if process.isRunning {
-            process.terminate()
+        guard let activeProcessToken,
+              requestedTerminationToken != activeProcessToken else {
+            return false
         }
-        process.waitUntilExit()
-        self.process = nil
+
+        guard process.isRunning else {
+            processDidTerminate(token: activeProcessToken)
+            return true
+        }
+
+        requestedTerminationToken = activeProcessToken
+        process.terminate()
+        scheduleForcedTermination(token: activeProcessToken)
         return true
+    }
+
+    private func scheduleForcedTermination(token: UUID) {
+        Task { @MainActor [weak self, terminationGracePeriod] in
+            try? await Task.sleep(for: terminationGracePeriod)
+            guard let self,
+                  self.activeProcessToken == token,
+                  self.process?.isRunning == true else {
+                return
+            }
+            self.process?.forceTerminate()
+        }
     }
 
     private func processDidTerminate(token: UUID) {
@@ -103,8 +136,13 @@ public final class CaffeinateController {
         }
 
         process?.waitUntilExit()
+        let wasRequested = requestedTerminationToken == token
         process = nil
         activeProcessToken = nil
-        unexpectedTerminationHandler?()
+        requestedTerminationToken = nil
+        stateChangeHandler?()
+        if !wasRequested {
+            unexpectedTerminationHandler?()
+        }
     }
 }

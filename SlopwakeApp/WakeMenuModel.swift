@@ -11,8 +11,13 @@ final class WakeMenuModel: ObservableObject {
     init(controller: CaffeinateController) {
         self.controller = controller
         isHolding = controller.isHolding
+        controller.stateChangeHandler = { [weak self] in
+            guard let self else {
+                return
+            }
+            isHolding = self.controller.isHolding
+        }
         controller.unexpectedTerminationHandler = { [weak self] in
-            self?.isHolding = false
             self?.errorMessage = "Wake hold stopped unexpectedly"
         }
     }
