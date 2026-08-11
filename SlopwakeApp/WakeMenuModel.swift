@@ -134,11 +134,12 @@ final class WakeMenuModel {
     func setStartsAtLogin(_ enabled: Bool) {
         do {
             try loginItemController.setEnabled(enabled)
-            refreshLoginItemState()
+            loginItemState = loginItemController.state
             guard startsAtLogin == enabled else {
                 loginItemMessage = "could not change start at login"
                 return
             }
+            preferenceStore.setStartsAtLogin(enabled)
             if loginItemState == .requiresApproval {
                 loginItemMessage = "start at login needs approval in System Settings"
             } else {

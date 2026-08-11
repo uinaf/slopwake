@@ -18,7 +18,9 @@ public struct WakePreferences: Equatable, Sendable {
     ) {
         self.enabledSurfaces = enabledSurfaces
         self.preventsDisplaySleep = preventsDisplaySleep
-        self.batteryCutoffPercentage = Self.normalizedCutoff(batteryCutoffPercentage)
+        self.batteryCutoffPercentage = Self.normalizedBatteryCutoffPercentage(
+            batteryCutoffPercentage
+        )
         self.startsAtLogin = startsAtLogin
     }
 
@@ -76,7 +78,7 @@ public struct WakePreferences: Equatable, Sendable {
         defaults.set(startsAtLogin, forKey: Keys.startsAtLogin)
     }
 
-    private static func normalizedCutoff(_ percentage: Int?) -> Int? {
+    public static func normalizedBatteryCutoffPercentage(_ percentage: Int?) -> Int? {
         guard let percentage, percentage > 0 else {
             return nil
         }

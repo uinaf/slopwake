@@ -1,5 +1,6 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := verify
+HOST_ARCH := $(shell uname -m)
 
 .PHONY: project test app-test build smoke notarized-smoke verify clean
 
@@ -14,11 +15,11 @@ app-test: project
 		-project Slopwake.xcodeproj \
 		-scheme Slopwake \
 		-configuration Debug \
-		-destination 'platform=macOS,arch=arm64' \
+		-destination 'platform=macOS,arch=$(HOST_ARCH)' \
 		-derivedDataPath DerivedData \
 		CODE_SIGN_IDENTITY=- \
 		ONLY_ACTIVE_ARCH=YES \
-		ARCHS=arm64 \
+		ARCHS=$(HOST_ARCH) \
 		test
 
 build: project

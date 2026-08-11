@@ -68,6 +68,14 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testBatteryCutoffIsNormalizedAtTheMenuBoundary() {
+        withModel { model, _, _, _, _ in
+            model.setBatteryCutoffPercentage(1)
+
+            XCTAssertEqual(model.preferences.batteryCutoffPercentage, 5)
+        }
+    }
+
     private func withModel(
         automaticState: AutomaticWakeState = AutomaticWakeState(
             shouldHold: false,

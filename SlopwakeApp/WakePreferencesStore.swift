@@ -30,7 +30,9 @@ final class WakePreferencesStore {
     }
 
     func setBatteryCutoffPercentage(_ percentage: Int?) {
-        value.batteryCutoffPercentage = percentage
+        value.batteryCutoffPercentage = WakePreferences.normalizedBatteryCutoffPercentage(
+            percentage
+        )
         persist()
     }
 
