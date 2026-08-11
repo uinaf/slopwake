@@ -108,10 +108,14 @@ chmod 600 "${certificate}" "${certificate_password_file}" "${notary_key}"
   "${app}"
 codesign --verify --deep --strict --verbose=2 "${app}"
 signature_details="$(codesign --display --verbose=4 "${app}" 2>&1)"
-grep -q "^TeamIdentifier=${APPLE_TEAM_ID}$" <<<"${signature_details}"
-grep -Eq '^CodeDirectory .*flags=.*runtime' <<<"${signature_details}"
-grep -q '^Timestamp=' <<<"${signature_details}"
-grep -q '^Authority=Developer ID Application:' <<<"${signature_details}"
+grep -q "^TeamIdentifier=${APPLE_TEAM_ID}$" <<<"${signature_details}" ||
+  fail "signed app TeamIdentifier does not match APPLE_TEAM_ID"
+grep -Eq '^CodeDirectory .*flags=.*runtime' <<<"${signature_details}" ||
+  fail "signed app is missing the hardened runtime flag"
+grep -q '^Timestamp=' <<<"${signature_details}" ||
+  fail "signed app is missing a trusted timestamp"
+grep -q '^Authority=Developer ID Application:' <<<"${signature_details}" ||
+  fail "signed app is missing the Developer ID Application authority"
 
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
 notary_result="${secret_root}/notary-result.plist"
