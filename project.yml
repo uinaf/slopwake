@@ -1,0 +1,59 @@
+name: Slopwake
+
+options:
+  bundleIdPrefix: dev.uinaf
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configs:
+  Debug: debug
+  Release: release
+
+packages:
+  SlopwakeCore:
+    path: .
+
+settings:
+  base:
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
+    ENABLE_STRICT_OBJC_MSGSEND: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    SWIFT_VERSION: 6.0
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+
+targets:
+  Slopwake:
+    type: application
+    platform: macOS
+    sources:
+      - path: SlopwakeApp
+    dependencies:
+      - package: SlopwakeCore
+        product: SlopwakeCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.uinaf.slopwake
+        PRODUCT_NAME: slopwake
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: slopwake
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSHighResolutionCapable: YES
+        ONLY_ACTIVE_ARCH: NO
+
+schemes:
+  Slopwake:
+    build:
+      targets:
+        Slopwake: all
+    run:
+      config: Debug
