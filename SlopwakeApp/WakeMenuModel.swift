@@ -219,11 +219,14 @@ final class WakeMenuModel {
                 try controller.start(
                     preventDisplaySleep: preferenceStore.value.preventsDisplaySleep
                 )
+                if !wakeHoldFailed {
+                    wakeErrorMessage = nil
+                }
             } else {
                 controller.stop()
                 wakeHoldFailed = false
+                wakeErrorMessage = nil
             }
-            wakeErrorMessage = nil
         } catch {
             wakeErrorMessage = "could not start wake hold"
         }

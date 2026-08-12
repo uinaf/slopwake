@@ -34,6 +34,19 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testExitObservedDuringReconcileKeepsRetryMessageVisible() {
+        withModel { model, controller, automatic, _, _ in
+            model.startManualHold(.oneHour)
+            controller.observeUnexpectedExitOnNextStart = true
+
+            automatic.publish(automatic.state)
+
+            XCTAssertFalse(model.isHolding)
+            XCTAssertEqual(model.wakeErrorMessage, "wake hold stopped unexpectedly")
+            XCTAssertEqual(model.statusText, "idle · wake hold unavailable")
+        }
+    }
+
     func testDisablingTheOnlyActiveDetectorReleasesImmediately() {
         let automatic = AutomaticWakeState(
             shouldHold: true,
@@ -166,9 +179,17 @@ private final class FakeWakeController: WakeHolding {
     private(set) var preventDisplaySleepInvocations: [Bool] = []
     private(set) var stopCount = 0
     private(set) var startCount = 0
+    var observeUnexpectedExitOnNextStart = false
 
     func start(preventDisplaySleep: Bool) throws -> Bool {
         startCount += 1
+        if observeUnexpectedExitOnNextStart {
+            observeUnexpectedExitOnNextStart = false
+            isHolding = false
+            unexpectedTerminationHandler?()
+            stateChangeHandler?()
+            return false
+        }
         preventDisplaySleepInvocations.append(preventDisplaySleep)
         let started = !isHolding
         isHolding = true
