@@ -4,8 +4,9 @@ import SwiftUI
 @MainActor
 struct SlopwakeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = WakeMenuModel(
-        controller: WakeServices.shared.controller
+    @State private var model = WakeMenuModel(
+        controller: WakeServices.shared.controller,
+        automaticMonitor: WakeServices.shared.automaticMonitor
     )
 
     var body: some Scene {
@@ -19,11 +20,16 @@ struct SlopwakeApp: App {
 }
 
 private struct WakeMenu: View {
-    @ObservedObject var model: WakeMenuModel
+    let model: WakeMenuModel
 
     var body: some View {
-        Text(model.isHolding ? "Awake — manual hold" : "Idle — sleep allowed")
+        Text(statusText)
             .font(.system(.body, design: .monospaced))
+
+        ForEach(model.automaticState.sources, id: \.surface) { source in
+            Text("\(source.surface.displayName) — \(source.evidence.rawValue)")
+                .font(.system(.caption, design: .monospaced))
+        }
 
         if let errorMessage = model.errorMessage {
             Text(errorMessage)
@@ -32,15 +38,37 @@ private struct WakeMenu: View {
 
         Divider()
 
-        if model.isHolding {
-            Button("Allow Sleep", action: model.stop)
+        if model.manualHoldRequested {
+            Button("End Manual Hold", action: model.stop)
         } else {
-            Button("Keep Awake", action: model.start)
+            Button("Keep Awake Manually", action: model.start)
         }
 
         Divider()
 
         Button("Quit slopwake", action: model.quit)
             .keyboardShortcut("q")
+    }
+
+    private var statusText: String {
+        if !model.isHolding {
+            if model.automaticState.isCeilingLimited && !model.manualHoldRequested {
+                return "Idle — automatic limit reached"
+            }
+            if model.manualHoldRequested || model.automaticState.shouldHold {
+                return "Idle — wake hold unavailable"
+            }
+            return "Idle — sleep allowed"
+        }
+        if model.manualHoldRequested && model.automaticState.shouldHold {
+            return "Awake — manual + automatic"
+        }
+        if model.manualHoldRequested {
+            return "Awake — manual hold"
+        }
+        if model.automaticState.shouldHold {
+            return "Awake — automatic hold"
+        }
+        return "Awake — releasing hold"
     }
 }

@@ -43,6 +43,21 @@ open Slopwake.xcodeproj
 The system bolt is temporary development artwork and is not a publishable
 product mark.
 
+## Automatic detection
+
+`slopwake` independently watches Codex Desktop/CLI, Claude Desktop/CLI, and
+Cursor Desktop/CLI. Headless CLI processes hold for their lifetime. Interactive
+CLI and desktop surfaces arm only after their public CPU counters advance;
+Claude Desktop may also use the lifetime of its descendant local-agent process.
+Recent activity expires after 30 quiet minutes. A continuous automatic hold is
+capped at eight hours and rearms only after the evidence becomes idle first.
+
+This is deliberately best-effort inference, not exact active-turn detection.
+The sampler keeps only process IDs plus start times, parent relationships,
+executable names, bundle identifiers, terminal presence, and cumulative CPU
+counters in memory. It does not read arguments, prompts, transcripts,
+databases, logs, sockets, window text, workspace names, or file contents.
+
 ## Notarized smoke build
 
 An authorized workstation can consume the adjacent private `uinaf/vault`
