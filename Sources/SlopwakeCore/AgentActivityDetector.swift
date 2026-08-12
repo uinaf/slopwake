@@ -97,6 +97,7 @@ public struct AutomaticWakeState: Equatable, Sendable {
 public struct AgentActivityDetector: Sendable {
     public static let defaultQuietPeriodSeconds: UInt64 = 30 * 60
     public static let defaultHoldCeilingSeconds: UInt64 = 8 * 60 * 60
+    public static let minimumActivityCPUTimeNanoseconds: UInt64 = 50_000_000
 
     private struct SessionKey: Hashable, Sendable {
         let surface: AgentSurface
@@ -203,8 +204,8 @@ public struct AgentActivityDetector: Sendable {
         for (sessionKey, session) in sessions
         where unavailableProcessIdentifiers.contains(sessionKey.identity.processIdentifier) &&
             enabledSurfaces.contains(sessionKey.surface) {
-            currentSessionKeys.insert(sessionKey)
-            if let evidence = session.lastEvidence {
+            if let evidence = retainedEvidence(for: session, at: now) {
+                currentSessionKeys.insert(sessionKey)
                 evidenceBySurface[sessionKey.surface] = stronger(
                     evidenceBySurface[sessionKey.surface],
                     evidence
@@ -222,7 +223,20 @@ public struct AgentActivityDetector: Sendable {
     }
 
     public mutating func tickWithoutSnapshot(at now: MonotonicTime) -> AutomaticWakeState {
-        resolveHoldState(sources: lastObservedSources, at: now)
+        var evidenceBySurface: [AgentSurface: AgentActivityEvidence] = [:]
+        for (sessionKey, session) in sessions {
+            if let evidence = retainedEvidence(for: session, at: now) {
+                evidenceBySurface[sessionKey.surface] = stronger(
+                    evidenceBySurface[sessionKey.surface],
+                    evidence
+                )
+            }
+        }
+        let sources = evidenceBySurface
+            .map { AutomaticWakeSource(surface: $0.key, evidence: $0.value) }
+            .sorted { $0.surface.rawValue < $1.surface.rawValue }
+        lastObservedSources = sources
+        return resolveHoldState(sources: sources, at: now)
     }
 
     private mutating func resolveHoldState(
@@ -263,7 +277,10 @@ public struct AgentActivityDetector: Sendable {
             lastActivity: nil,
             lastEvidence: nil
         )
-        let counterAdvanced = sample.cumulativeCPUTimeNanoseconds > session.lastCPUTimeNanoseconds
+        let cpuTimeDelta = sample.cumulativeCPUTimeNanoseconds >= session.lastCPUTimeNanoseconds
+            ? sample.cumulativeCPUTimeNanoseconds - session.lastCPUTimeNanoseconds
+            : 0
+        let counterAdvanced = cpuTimeDelta >= Self.minimumActivityCPUTimeNanoseconds
         session.lastCPUTimeNanoseconds = sample.cumulativeCPUTimeNanoseconds
         if forceActive || counterAdvanced {
             session.lastActivity = now
@@ -280,6 +297,17 @@ public struct AgentActivityDetector: Sendable {
         session.lastEvidence = evidence
         sessions[sessionKey] = session
         return evidence
+    }
+
+    private func retainedEvidence(
+        for session: SessionState,
+        at now: MonotonicTime
+    ) -> AgentActivityEvidence? {
+        guard let lastActivity = session.lastActivity,
+              elapsedSeconds(from: lastActivity, to: now) < quietPeriodSeconds else {
+            return nil
+        }
+        return .recentActivity
     }
 
     private func desktopRootProcesses(

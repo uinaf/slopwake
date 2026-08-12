@@ -27,22 +27,35 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertFalse(detector.update(processes: [baseline], at: time(0)).shouldHold)
         XCTAssertEqual(
             detector.update(
-                processes: [sample(pid: 10, name: "claude", terminal: true, cpu: 101)],
+                processes: [sample(pid: 10, name: "claude", terminal: true, cpu: 50_000_100)],
                 at: time(1)
             ),
             state(.claudeCLI, .activeProcess)
         )
         XCTAssertEqual(
             detector.update(
-                processes: [sample(pid: 10, name: "claude", terminal: true, cpu: 101)],
+                processes: [sample(pid: 10, name: "claude", terminal: true, cpu: 50_000_100)],
                 at: time(1_800)
             ),
             state(.claudeCLI, .recentActivity)
         )
         XCTAssertFalse(
             detector.update(
-                processes: [sample(pid: 10, name: "claude", terminal: true, cpu: 101)],
+                processes: [sample(pid: 10, name: "claude", terminal: true, cpu: 50_000_100)],
                 at: time(1_801)
+            ).shouldHold
+        )
+    }
+
+    func testBackgroundCPUNoiseDoesNotCountAsInteractiveActivity() {
+        var detector = AgentActivityDetector()
+        let baseline = sample(pid: 11, name: "codex", terminal: true, cpu: 100)
+
+        XCTAssertFalse(detector.update(processes: [baseline], at: time(0)).shouldHold)
+        XCTAssertFalse(
+            detector.update(
+                processes: [sample(pid: 11, name: "codex", terminal: true, cpu: 49_999_999)],
+                at: time(5)
             ).shouldHold
         )
     }
@@ -68,7 +81,7 @@ final class AgentActivityDetectorTests: XCTestCase {
 
         let active = detector.update(
             processes: [
-                sample(pid: 20, name: "Codex", bundle: "com.openai.codex", cpu: 101),
+                sample(pid: 20, name: "Codex", bundle: "com.openai.codex", cpu: 50_000_100),
                 claude,
                 localAgent,
             ],
@@ -122,7 +135,7 @@ final class AgentActivityDetectorTests: XCTestCase {
                         parent: 40,
                         name: "cursor-agent",
                         terminal: true,
-                        cpu: 201
+                        cpu: 50_000_200
                     ),
                 ],
                 at: time(1)
@@ -155,7 +168,7 @@ final class AgentActivityDetectorTests: XCTestCase {
                         pid: 43,
                         name: "Cursor",
                         bundle: "com.todesktop.230313mzl4w4u92",
-                        cpu: 201
+                        cpu: 50_000_200
                     ),
                 ],
                 at: time(1)
@@ -208,7 +221,7 @@ final class AgentActivityDetectorTests: XCTestCase {
         )
         XCTAssertTrue(
             detector.update(
-                processes: [sample(pid: 70, start: 1, name: "codex", terminal: true, cpu: 101)],
+                processes: [sample(pid: 70, start: 1, name: "codex", terminal: true, cpu: 50_000_100)],
                 at: time(1)
             ).shouldHold
         )
@@ -227,13 +240,13 @@ final class AgentActivityDetectorTests: XCTestCase {
             at: time(100)
         )
         _ = detector.update(
-            processes: [sample(pid: 80, name: "cursor", terminal: true, cpu: 101)],
+            processes: [sample(pid: 80, name: "cursor", terminal: true, cpu: 50_000_100)],
             at: time(101)
         )
 
         XCTAssertEqual(
             detector.update(
-                processes: [sample(pid: 80, name: "cursor", terminal: true, cpu: 101)],
+                processes: [sample(pid: 80, name: "cursor", terminal: true, cpu: 50_000_100)],
                 at: time(99)
             ),
             state(.cursorCLI, .recentActivity)
@@ -268,7 +281,7 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertFalse(limited.shouldHold)
         XCTAssertTrue(limited.isCeilingLimited)
         XCTAssertEqual(limited.sources, [
-            AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
+            AutomaticWakeSource(surface: .codexCLI, evidence: .recentActivity),
         ])
         XCTAssertTrue(detector.tickWithoutSnapshot(at: time(101)).isCeilingLimited)
         XCTAssertTrue(detector.update(processes: [headless], at: time(102)).isCeilingLimited)
@@ -295,6 +308,28 @@ final class AgentActivityDetectorTests: XCTestCase {
         )
         XCTAssertTrue(detector.update(processes: [headless], at: time(102)).isCeilingLimited)
         XCTAssertFalse(detector.update(processes: [], at: time(103)).isCeilingLimited)
+    }
+
+    func testSamplingFailureEvidenceExpiresAfterQuietPeriod() {
+        var detector = AgentActivityDetector(quietPeriodSeconds: 10)
+        let headless = sample(pid: 94, name: "codex", terminal: false)
+        _ = detector.update(processes: [headless], at: time(0))
+
+        XCTAssertEqual(
+            detector.update(
+                processes: [],
+                at: time(9),
+                unavailableProcessIdentifiers: Set([94])
+            ),
+            state(.codexCLI, .recentActivity)
+        )
+        XCTAssertFalse(
+            detector.update(
+                processes: [],
+                at: time(10),
+                unavailableProcessIdentifiers: Set([94])
+            ).shouldHold
+        )
     }
 
     func testDisabledSurfaceDoesNotCreateSessionState() {
