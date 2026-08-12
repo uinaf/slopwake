@@ -48,7 +48,7 @@ final class CaffeinateControllerTests: XCTestCase {
         XCTAssertEqual(invocations, [["-dims", "-w", "42"]])
     }
 
-    func testDisplayPreferenceChangeRestartsAfterTermination() async throws {
+    func testDisplayFlagChangeReplacesTheOwnedChild() async throws {
         var invocations: [[String]] = []
         var processes: [FakeWakeProcess] = []
         let controller = CaffeinateController(ownerPID: 42) { _, arguments in
@@ -57,7 +57,6 @@ final class CaffeinateControllerTests: XCTestCase {
             processes.append(process)
             return process
         }
-
         XCTAssertTrue(try controller.start())
         XCTAssertFalse(try controller.start(preventDisplaySleep: true))
         XCTAssertEqual(processes.count, 1)
@@ -69,7 +68,10 @@ final class CaffeinateControllerTests: XCTestCase {
         await fulfillment(of: [restarted], timeout: 1)
 
         XCTAssertEqual(processes.count, 2)
-        XCTAssertEqual(invocations.last, ["-dims", "-w", "42"])
+        XCTAssertEqual(invocations, [
+            ["-ims", "-w", "42"],
+            ["-dims", "-w", "42"],
+        ])
         XCTAssertEqual(controller.processIdentifier, 7_002)
     }
 
@@ -167,15 +169,23 @@ final class CaffeinateControllerTests: XCTestCase {
         process.finishTermination()
     }
 
-    func testLaunchFailureDoesNotClaimAHold() {
+    func testLaunchFailureDoesNotClaimAHoldAndCanBeRetried() throws {
+        var processes: [FakeWakeProcess] = []
         let controller = CaffeinateController { _, _ in
-            FakeWakeProcess(runError: TestError.launchFailed)
+            let process = FakeWakeProcess(
+                processIdentifier: Int32(7_001 + processes.count),
+                runError: processes.isEmpty ? TestError.launchFailed : nil
+            )
+            processes.append(process)
+            return process
         }
 
         XCTAssertThrowsError(try controller.start())
         XCTAssertFalse(controller.isHolding)
         XCTAssertNil(controller.processIdentifier)
         XCTAssertFalse(controller.stop())
+        XCTAssertTrue(try controller.start())
+        XCTAssertEqual(controller.processIdentifier, 7_002)
     }
 
     func testUnexpectedExitClearsTheHoldAndReportsIt() async throws {

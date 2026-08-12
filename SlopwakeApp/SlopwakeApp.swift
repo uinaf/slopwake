@@ -10,7 +10,8 @@ struct SlopwakeApp: App {
         automaticMonitor: WakeServices.shared.automaticMonitor,
         batteryMonitor: WakeServices.shared.batteryMonitor,
         preferenceStore: WakeServices.shared.preferences,
-        loginItemController: WakeServices.shared.loginItemController
+        loginItemController: WakeServices.shared.loginItemController,
+        startsServices: ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
     )
 
     var body: some Scene {

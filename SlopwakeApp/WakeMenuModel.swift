@@ -24,6 +24,9 @@ final class WakeMenuModel {
         if policyState.shouldHold && !isHolding {
             return "idle · wake hold unavailable"
         }
+        if !policyState.shouldHold && isHolding {
+            return "awake · releasing hold"
+        }
         return policyState.status.displayText
     }
 
@@ -45,13 +48,16 @@ final class WakeMenuModel {
     private var policy = WakePolicy()
     @ObservationIgnored
     private var clockTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var suppressNextControllerReconcile = false
 
     init(
         controller: any WakeHolding,
         automaticMonitor: any AutomaticWakeMonitoring,
         batteryMonitor: any BatteryMonitoring,
         preferenceStore: WakePreferencesStore,
-        loginItemController: any LoginItemControlling
+        loginItemController: any LoginItemControlling,
+        startsServices: Bool = true
     ) {
         self.controller = controller
         self.automaticMonitor = automaticMonitor
@@ -69,9 +75,18 @@ final class WakeMenuModel {
 
         automaticMonitor.enabledSurfaces = preferenceStore.value.enabledSurfaces
         controller.stateChangeHandler = { [weak self] in
-            self?.reconcileWakeHold()
+            guard let self else {
+                return
+            }
+            isHolding = controller.isHolding
+            if suppressNextControllerReconcile {
+                suppressNextControllerReconcile = false
+            } else {
+                reconcileWakeHold()
+            }
         }
         controller.unexpectedTerminationHandler = { [weak self] in
+            self?.suppressNextControllerReconcile = true
             self?.wakeErrorMessage = "wake hold stopped unexpectedly"
         }
         automaticMonitor.stateChangeHandler = { [weak self] state in
@@ -81,11 +96,13 @@ final class WakeMenuModel {
         batteryMonitor.stateChangeHandler = { [weak self] _ in
             self?.reconcileWakeHold()
         }
-        automaticMonitor.start()
-        batteryMonitor.start()
-        refreshLoginItemState()
-        startClock()
-        reconcileWakeHold()
+        if startsServices {
+            automaticMonitor.start()
+            batteryMonitor.start()
+            refreshLoginItemState()
+            startClock()
+            reconcileWakeHold()
+        }
     }
 
     func startManualHold(_ duration: ManualHoldDuration) {
@@ -203,6 +220,14 @@ final class WakeMenuModel {
         loginItemState = loginItemController.state
         if preferenceStore.value.startsAtLogin != startsAtLogin {
             preferenceStore.setStartsAtLogin(startsAtLogin)
+        }
+        switch loginItemState {
+        case .enabled, .disabled:
+            loginItemMessage = nil
+        case .requiresApproval:
+            loginItemMessage = "start at login needs approval in System Settings"
+        case .unavailable:
+            break
         }
     }
 }

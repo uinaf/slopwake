@@ -16,14 +16,14 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
-    func testUnexpectedExitRecoveryClearsWakeErrorAndRestoresHolding() {
+    func testUnexpectedExitReportsErrorWithoutRespawning() {
         withModel { model, controller, _, _, _ in
             model.startManualHold(.oneHour)
             controller.simulateUnexpectedExit()
 
-            XCTAssertTrue(model.isHolding)
-            XCTAssertNil(model.wakeErrorMessage)
-            XCTAssertTrue(model.statusText.hasPrefix("awake · manual ·"))
+            XCTAssertFalse(model.isHolding)
+            XCTAssertEqual(model.wakeErrorMessage, "wake hold stopped unexpectedly")
+            XCTAssertEqual(model.statusText, "idle · wake hold unavailable")
         }
     }
 
@@ -64,6 +64,22 @@ final class WakeMenuModelTests: XCTestCase {
             XCTAssertEqual(loginItem.state, .enabled)
             XCTAssertTrue(model.startsAtLogin)
             XCTAssertTrue(model.preferences.startsAtLogin)
+            XCTAssertNil(model.loginItemMessage)
+        }
+    }
+
+    func testLoginItemApprovalMessageClearsAfterApproval() {
+        withModel(loginItemState: .requiresApproval) { model, _, _, _, loginItem in
+            loginItem.enabledState = .requiresApproval
+            model.setStartsAtLogin(true)
+            XCTAssertEqual(
+                model.loginItemMessage,
+                "start at login needs approval in System Settings"
+            )
+
+            loginItem.state = .enabled
+            loginItem.enabledState = .enabled
+            model.setStartsAtLogin(true)
             XCTAssertNil(model.loginItemMessage)
         }
     }
@@ -176,6 +192,7 @@ private final class FakeBatteryMonitor: BatteryMonitoring {
 private final class FakeLoginItemController: LoginItemControlling {
     var state: LoginItemState
     var setError: Error?
+    var enabledState: LoginItemState = .enabled
 
     init(state: LoginItemState) {
         self.state = state
@@ -185,7 +202,7 @@ private final class FakeLoginItemController: LoginItemControlling {
         if let setError {
             throw setError
         }
-        state = enabled ? .enabled : .disabled
+        state = enabled ? enabledState : .disabled
     }
 }
 
