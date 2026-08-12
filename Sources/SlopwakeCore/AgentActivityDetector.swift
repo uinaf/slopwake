@@ -167,6 +167,7 @@ public struct AgentActivityDetector: Sendable {
         for process in normalizedProcesses {
             guard let surface = cliSurface(for: process.executableName),
                   enabledSurfaces.contains(surface),
+                  process.bundleIdentifier == nil,
                   process.hasControllingTerminal || !belongsToDesktopApp(
                       process,
                       surface: surface,

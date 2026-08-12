@@ -364,6 +364,19 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertTrue(state.sources.isEmpty)
     }
 
+    func testUnknownDesktopBundleIsNotClassifiedAsHeadlessCLI() {
+        var detector = AgentActivityDetector()
+        let desktop = sample(
+            pid: 120,
+            name: "Cursor",
+            bundle: "com.example.cursor-preview"
+        )
+
+        let state = detector.update(processes: [desktop], at: time(0))
+        XCTAssertFalse(state.shouldHold)
+        XCTAssertTrue(state.sources.isEmpty)
+    }
+
     private func time(_ seconds: UInt64) -> MonotonicTime {
         MonotonicTime(seconds: seconds)
     }
