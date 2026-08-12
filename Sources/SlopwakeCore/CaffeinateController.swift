@@ -35,6 +35,7 @@ public final class CaffeinateController {
     private var process: (any WakeProcess)?
     private var activeProcessToken: UUID?
     private var requestedTerminationToken: UUID?
+    private var startAfterTermination = false
 
     public var stateChangeHandler: (() -> Void)?
     public var unexpectedTerminationHandler: (() -> Void)?
@@ -71,11 +72,12 @@ public final class CaffeinateController {
         if let process {
             if process.isRunning {
                 guard requestedTerminationToken == activeProcessToken,
-                      let activeProcessToken else {
+                      activeProcessToken != nil else {
                     return false
                 }
+                startAfterTermination = true
                 process.forceTerminate()
-                processDidTerminate(token: activeProcessToken)
+                return false
             }
             if let activeProcessToken = self.activeProcessToken {
                 processDidTerminate(token: activeProcessToken)
@@ -113,6 +115,7 @@ public final class CaffeinateController {
 
         guard let activeProcessToken,
               requestedTerminationToken != activeProcessToken else {
+            startAfterTermination = false
             return false
         }
 
@@ -149,8 +152,18 @@ public final class CaffeinateController {
         process = nil
         activeProcessToken = nil
         requestedTerminationToken = nil
+        let shouldStart = startAfterTermination
+        startAfterTermination = false
+        var restartFailed = false
+        if shouldStart {
+            do {
+                try start()
+            } catch {
+                restartFailed = true
+            }
+        }
         stateChangeHandler?()
-        if !wasRequested {
+        if !wasRequested || restartFailed {
             unexpectedTerminationHandler?()
         }
     }

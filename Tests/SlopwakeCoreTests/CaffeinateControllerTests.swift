@@ -72,10 +72,18 @@ final class CaffeinateControllerTests: XCTestCase {
 
         XCTAssertTrue(try controller.start())
         XCTAssertTrue(controller.stop())
-        XCTAssertTrue(try controller.start())
+        XCTAssertFalse(try controller.start())
+
+        XCTAssertEqual(processes.count, 1)
+        XCTAssertEqual(processes[0].forceTerminateCount, 1)
+        XCTAssertEqual(processes[0].waitCount, 0)
+
+        let replaced = expectation(description: "replacement process started")
+        controller.stateChangeHandler = replaced.fulfill
+        processes[0].finishTermination()
+        await fulfillment(of: [replaced], timeout: 1)
 
         XCTAssertEqual(processes.count, 2)
-        XCTAssertEqual(processes[0].forceTerminateCount, 1)
         XCTAssertEqual(processes[0].waitCount, 1)
         XCTAssertEqual(controller.processIdentifier, 7_002)
 

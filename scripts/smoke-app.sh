@@ -25,10 +25,16 @@ if pgrep -x slopwake >/dev/null; then
 fi
 
 app_pid=""
-cleanup() {
-  if [[ -n "${app_pid}" ]] && kill -0 "${app_pid}" 2>/dev/null; then
-    kill -TERM "${app_pid}"
+terminate_app() {
+  [[ -n "${app_pid}" ]] || return 0
+  kill -0 "${app_pid}" 2>/dev/null || return 0
+  if ! kill -TERM "${app_pid}" 2>/dev/null && kill -0 "${app_pid}" 2>/dev/null; then
+    echo "error: could not terminate slopwake" >&2
+    return 1
   fi
+}
+cleanup() {
+  terminate_app
   if [[ -n "${app_pid}" ]]; then
     wait "${app_pid}" 2>/dev/null || true
   fi
@@ -43,7 +49,7 @@ if [[ -z "${app_state}" || "${app_state}" == Z* ]]; then
   echo "error: slopwake exited during launch" >&2
   exit 1
 fi
-kill -TERM "${app_pid}"
+terminate_app
 termination_deadline=$((SECONDS + 10))
 while ((SECONDS < termination_deadline)); do
   kill -0 "${app_pid}" 2>/dev/null || break
