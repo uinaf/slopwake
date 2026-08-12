@@ -1,0 +1,378 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  verify:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    concurrency:
+      group: verify-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Verify
+        run: make verify
+
+  release:
+    needs: [verify]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: macos-26
+    timeout-minutes: 120
+    environment:
+      name: release
+      deployment: false
+    permissions:
+      contents: read
+    concurrency:
+      group: release-${{ github.repository }}-main
+      cancel-in-progress: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Discard superseded release run
+        id: preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [[ "${live}" == "${GITHUB_SHA}" ]]; then
+            echo "current=true" >>"${GITHUB_OUTPUT}"
+            echo "recovery=false" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          compare="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...${live}")"
+          ahead="$(jq -r .ahead_by <<<"${compare}")"
+          behind="$(jq -r .behind_by <<<"${compare}")"
+          message="$(jq -r '.commits[0].commit.message // empty' <<<"${compare}")"
+          if [[ "${ahead}" == "1" && "${behind}" == "0" && "${message}" == *'[skip ci]'* ]]; then
+            echo "recovery from version commit ${live}"
+            echo "current=true" >>"${GITHUB_OUTPUT}"
+            echo "recovery=true" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "live main is ${live}; this run is ${GITHUB_SHA}"
+          echo "current=false" >>"${GITHUB_OUTPUT}"
+          echo "recovery=false" >>"${GITHUB_OUTPUT}"
+
+      - name: Create release bot token
+        if: ${{ steps.preflight.outputs.current == 'true' }}
+        id: release-bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.UINAF_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.UINAF_RELEASE_APP_PRIVATE_KEY }}
+          owner: uinaf
+          repositories: slopwake
+          permission-contents: write
+
+      - name: Confirm release head
+        if: ${{ steps.preflight.outputs.current == 'true' && steps.preflight.outputs.recovery != 'true' }}
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [[ "${live}" != "${GITHUB_SHA}" ]]; then
+            echo "live main is ${live}; this run is ${GITHUB_SHA}"
+            echo "current=false" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "current=true" >>"${GITHUB_OUTPUT}"
+
+      - name: Gate release work
+        if: ${{ steps.preflight.outputs.current == 'true' }}
+        id: gate
+        env:
+          RECOVERY: ${{ steps.preflight.outputs.recovery }}
+          HEAD_CURRENT: ${{ steps.head.outputs.current }}
+        run: |
+          set -euo pipefail
+          if [[ "${RECOVERY}" == "true" || "${HEAD_CURRENT}" == "true" ]]; then
+            echo "active=true" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "active=false" >>"${GITHUB_OUTPUT}"
+
+      - name: Prepare draft release
+        if: ${{ steps.gate.outputs.active == 'true' && steps.preflight.outputs.recovery != 'true' }}
+        id: release
+        uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
+        with:
+          semantic_version: 25.0.3
+          extra_plugins: |
+            @semantic-release/commit-analyzer@13.0.1
+            @semantic-release/release-notes-generator@14.1.1
+            conventional-changelog-conventionalcommits@9.3.1
+            @semantic-release/exec@7.1.0
+            @jno21/semantic-release-github-commit@1.0.1
+            @semantic-release/github@12.0.9
+        env:
+          GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+
+      - name: Restore credential-free origin
+        if: ${{ always() && steps.gate.outputs.active == 'true' && steps.preflight.outputs.recovery != 'true' }}
+        run: git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Resolve release target
+        if: ${{ steps.gate.outputs.active == 'true' }}
+        id: target
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          NEW_RELEASE_VERSION: ${{ steps.release.outputs.new_release_version }}
+        run: |
+          set -euo pipefail
+          version="${NEW_RELEASE_VERSION:-}"
+          if [[ -z "${version}" ]]; then
+            tags="$(
+              git tag --points-at HEAD |
+                grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || true
+            )"
+            if [[ -z "${tags}" ]]; then
+              live="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+              message="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${live}" --jq .commit.message)"
+              version="$(sed -nE '1s/^chore\(release\): ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' <<<"${message}")"
+            else
+              if [[ "$(printf '%s\n' "${tags}" | wc -l | tr -d ' ')" != "1" ]]; then
+                printf 'multiple stable release tags point at HEAD: %s\n' "${tags}" >&2
+                exit 1
+              fi
+              version="${tags#v}"
+            fi
+          fi
+          if [[ -z "${version}" ]]; then
+            echo "present=false" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "present=true" >>"${GITHUB_OUTPUT}"
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >>"${GITHUB_OUTPUT}"
+
+      - name: Inspect GitHub Release state
+        if: ${{ steps.gate.outputs.active == 'true' && steps.target.outputs.present == 'true' }}
+        id: release-state
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          err="${RUNNER_TEMP}/release-api.err"
+          set +e
+          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" 2>"${err}")"
+          status=$?
+          set -e
+          if [[ "${status}" -ne 0 ]]; then
+            if grep -Eq 'HTTP 404|Not Found' "${err}"; then
+              echo "exists=false" >>"${GITHUB_OUTPUT}"
+              echo "published=false" >>"${GITHUB_OUTPUT}"
+              echo "draft=false" >>"${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            cat "${err}" >&2
+            exit "${status}"
+          fi
+          echo "exists=true" >>"${GITHUB_OUTPUT}"
+          echo "draft=$(jq -r .draft <<<"${release}")" >>"${GITHUB_OUTPUT}"
+          echo "published=$(jq -r '(.draft == false)' <<<"${release}")" >>"${GITHUB_OUTPUT}"
+
+      - name: Select Xcode 26.6
+        if: ${{ steps.gate.outputs.active == 'true' && steps.release-state.outputs.draft == 'true' }}
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Sign and attach release asset
+        if: ${{ steps.gate.outputs.active == 'true' && steps.release-state.outputs.draft == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          VERSION: ${{ steps.target.outputs.version }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
+          APPLE_NOTARY_API_KEY_ID: ${{ vars.APPLE_NOTARY_API_KEY_ID }}
+          APPLE_NOTARY_API_ISSUER_ID: ${{ vars.APPLE_NOTARY_API_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          asset="dist/slopwake-${VERSION}-macos-universal.zip"
+          if [[ ! -f "${asset}" ]]; then
+            gh release download "${RELEASE_TAG}" \
+              --pattern "slopwake-${VERSION}-macos-universal.zip" \
+              --dir dist || true
+          fi
+          if [[ ! -f "${asset}" ]]; then
+            make release RELEASE_VERSION="${VERSION}" BUILD_NUMBER="${GITHUB_RUN_NUMBER:-1}"
+          fi
+          [[ -f "${asset}" ]]
+          gh release upload "${RELEASE_TAG}" "${asset}" --clobber
+
+      - name: Validate and publish immutable release
+        if: ${{ steps.gate.outputs.active == 'true' && steps.release-state.outputs.draft == 'true' }}
+        id: publish
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          VERSION: ${{ steps.target.outputs.version }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          asset="dist/slopwake-${VERSION}-macos-universal.zip"
+          if [[ ! -f "${asset}" ]]; then
+            gh release download "${RELEASE_TAG}" \
+              --pattern "slopwake-${VERSION}-macos-universal.zip" \
+              --dir dist
+          fi
+          expected="sha256:$(shasum -a 256 "${asset}" | awk '{print $1}')"
+          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
+          [[ "$(jq -r .draft <<<"${release}")" == "true" ]]
+          [[ "$(jq -r --arg name "$(basename "${asset}")" '.assets[] | select(.name == $name) | .digest' <<<"${release}")" == "${expected}" ]]
+          gh release edit "${RELEASE_TAG}" --draft=false --latest
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq .immutable)" == "true" ]]
+          echo "published=true" >>"${GITHUB_OUTPUT}"
+
+      - name: Verify immutable release
+        if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq .immutable)" == "true" ]]
+          for attempt in {1..12}; do
+            if gh release verify "${RELEASE_TAG}"; then
+              exit 0
+            fi
+            if (( attempt == 12 )); then
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Create tap bot token
+        if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
+        id: tap-bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.UINAF_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.UINAF_RELEASE_APP_PRIVATE_KEY }}
+          owner: uinaf
+          repositories: homebrew-tap
+          permission-contents: write
+
+      - name: Check out Homebrew tap
+        if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: uinaf/homebrew-tap
+          path: homebrew-tap
+          persist-credentials: false
+          ref: main
+
+      - name: Set up Homebrew
+        if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
+        uses: Homebrew/actions/setup-homebrew@962acc985cf741e4f7a112a3cfa6194386b63edf # main
+        with:
+          brew-gh-api-token: ${{ steps.tap-bot.outputs.token }}
+
+      - name: Prepare Homebrew cask
+        if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
+        id: cask
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          VERSION: ${{ steps.target.outputs.version }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          asset_dir="$(mktemp -d)"
+          asset="${asset_dir}/slopwake-${VERSION}-macos-universal.zip"
+          gh release download "${RELEASE_TAG}" \
+            --pattern "slopwake-${VERSION}-macos-universal.zip" \
+            --dir "${asset_dir}"
+          new_cask=false
+          [[ -f homebrew-tap/Casks/slopwake.rb ]] || new_cask=true
+          scripts/update-homebrew-cask.sh "${VERSION}" "${asset}" homebrew-tap
+          git -C homebrew-tap add -- Casks/slopwake.rb
+          git -C homebrew-tap diff --cached --check
+          echo "new_cask=${new_cask}" >>"${GITHUB_OUTPUT}"
+          if git -C homebrew-tap diff --cached --quiet -- Casks/slopwake.rb; then
+            echo "changed=false" >>"${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >>"${GITHUB_OUTPUT}"
+          fi
+
+      - name: Audit Homebrew cask
+        if: ${{ steps.gate.outputs.active == 'true' && steps.cask.outputs.changed == 'true' }}
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ steps.tap-bot.outputs.token }}
+          NEW_CASK: ${{ steps.cask.outputs.new_cask }}
+        run: |
+          set -euo pipefail
+          brew tap uinaf/tap "${GITHUB_WORKSPACE}/homebrew-tap"
+          if [[ "${NEW_CASK}" == "true" ]]; then
+            brew audit --online --new --cask uinaf/tap/slopwake
+          else
+            brew audit --online --cask uinaf/tap/slopwake
+          fi
+
+      - name: Commit signed Homebrew cask
+        if: ${{ steps.gate.outputs.active == 'true' && steps.cask.outputs.changed == 'true' }}
+        id: tap-commit
+        uses: pgaskin/push-signed-commits@5055c5f30c4dca7aa847ed2f07683d7359b8ff2b # v1.2.0
+        with:
+          path: homebrew-tap
+          repository: uinaf/homebrew-tap
+          branch: main
+          commit-message: "chore(slopwake): update to v${{ steps.target.outputs.version }}"
+          github-token: ${{ steps.tap-bot.outputs.token }}
+
+      - name: Verify signed tap commit
+        if: ${{ steps.gate.outputs.active == 'true' && steps.cask.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.tap-bot.outputs.token }}
+          TAP_OID: ${{ steps.tap-commit.outputs.pushed-oid }}
+        run: |
+          set -euo pipefail
+          [[ -n "${TAP_OID}" ]]
+          verified="$(gh api "repos/uinaf/homebrew-tap/commits/${TAP_OID}" --jq .commit.verification.verified)"
+          reason="$(gh api "repos/uinaf/homebrew-tap/commits/${TAP_OID}" --jq .commit.verification.reason)"
+          [[ "${verified}" == "true" && "${reason}" == "valid" ]]
+
+      - name: Smoke Homebrew install and uninstall
+        if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ steps.tap-bot.outputs.token }}
+        run: |
+          set -euo pipefail
+          if brew tap | grep -qx uinaf/tap; then
+            brew untap uinaf/tap
+          fi
+          brew tap uinaf/tap
+          brew update
+          brew install --cask uinaf/tap/slopwake
+          scripts/smoke-installed-app.sh /Applications/slopwake.app
+          brew uninstall --cask --zap slopwake
+          [[ ! -e /Applications/slopwake.app ]]
+          [[ ! -e "${HOME}/Library/Preferences/dev.uinaf.slopwake.plist" ]]

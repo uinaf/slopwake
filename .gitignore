@@ -3,6 +3,7 @@
 .swiftpm/
 .artifacts/
 DerivedData/
+dist/
 *.xcresult
 *.xcuserstate
 xcuserdata/

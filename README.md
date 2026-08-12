@@ -7,6 +7,19 @@ wake lock.
 activity with bounded manual holds and owns a single `/usr/bin/caffeinate`
 child for the resulting demand.
 
+## Install
+
+With Homebrew:
+
+```sh
+brew install --cask uinaf/tap/slopwake
+```
+
+Or download the universal ZIP from [GitHub Releases], then move
+`slopwake.app` to `~/Applications` without administrator access, or to
+`/Applications` if you have permission. The app is Developer ID signed and
+notarized.
+
 ## Use
 
 The menu exposes the current wake state and its active sources.
@@ -33,7 +46,13 @@ activity state reset when the app exits.
 
 Detection uses process identity, parent relationships, terminal presence, and
 cumulative CPU counters. It does not inspect prompts, transcripts, files,
-windows, or network traffic.
+windows, or network traffic. The app has no accounts, analytics, telemetry, or
+runtime network calls.
+
+Detection is best-effort; it does not claim exact agent turn state. Wake holds
+support an open lid. Normal powered clamshell use with an external display
+continues to work, but `slopwake` does not bypass macOS bare closed-lid sleep or
+corporate policy.
 
 ## Build from source
 
@@ -48,6 +67,12 @@ for setup and verification commands.
 - [Release workflow](docs/RELEASING.md) covers signing, notarization, and release
   artifacts.
 
+## Contributing
+
+See [Contributing](CONTRIBUTING.md) for setup and verification.
+
 ## License
 
 [MIT](LICENSE)
+
+[GitHub Releases]: https://github.com/uinaf/slopwake/releases
