@@ -104,18 +104,20 @@ chmod 600 "${certificate}" "${certificate_password_file}" "${notary_key}"
 "${rcodesign}" sign \
   --p12-file "${certificate}" \
   --p12-password-file "${certificate_password_file}" \
-  --code-signature-flags runtime \
+  --for-notarization \
   "${app}"
 codesign --verify --deep --strict --verbose=2 "${app}"
-signature_details="$(codesign --display --verbose=4 "${app}" 2>&1)"
-grep -q "^TeamIdentifier=${APPLE_TEAM_ID}$" <<<"${signature_details}" ||
-  fail "signed app TeamIdentifier does not match APPLE_TEAM_ID"
-grep -Eq '^CodeDirectory .*flags=.*runtime' <<<"${signature_details}" ||
-  fail "signed app is missing the hardened runtime flag"
-grep -q '^Timestamp=' <<<"${signature_details}" ||
-  fail "signed app is missing a trusted timestamp"
-grep -q '^Authority=Developer ID Application:' <<<"${signature_details}" ||
-  fail "signed app is missing the Developer ID Application authority"
+for architecture in arm64 x86_64; do
+  signature_details="$(codesign --display --verbose=4 --arch "${architecture}" "${app}" 2>&1)"
+  grep -q "^TeamIdentifier=${APPLE_TEAM_ID}$" <<<"${signature_details}" ||
+    fail "${architecture} signature TeamIdentifier does not match APPLE_TEAM_ID"
+  grep -Eq '^CodeDirectory .*flags=.*runtime' <<<"${signature_details}" ||
+    fail "${architecture} signature is missing the hardened runtime flag"
+  grep -q '^Timestamp=' <<<"${signature_details}" ||
+    fail "${architecture} signature is missing a trusted timestamp"
+  grep -q '^Authority=Developer ID Application:' <<<"${signature_details}" ||
+    fail "${architecture} signature is missing the Developer ID Application authority"
+done
 
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
 notary_result="${secret_root}/notary-result.plist"
@@ -134,7 +136,7 @@ if [[ "${notary_status}" != "Accepted" ]]; then
     --key "${notary_key}" \
     --key-id "${APPLE_NOTARY_API_KEY_ID}" \
     --issuer "${APPLE_NOTARY_API_ISSUER_ID}" \
-    "${submission_id}" - >&2 || true
+    "${submission_id}" >&2 || true
   fail "notarization submission ${submission_id} finished with ${notary_status}"
 fi
 
