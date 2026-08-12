@@ -59,15 +59,36 @@ final class CaffeinateControllerTests: XCTestCase {
         await fulfillment(of: [stopped], timeout: 1)
     }
 
-    func testLaunchFailureDoesNotClaimAHold() {
-        let controller = CaffeinateController { _, _ in
-            FakeWakeProcess(runError: TestError.launchFailed)
+    func testLaunchFailureDoesNotClaimAHoldAndCanBeRetried() async throws {
+        var invocations: [(URL, [String])] = []
+        var processes: [FakeWakeProcess] = []
+        let controller = CaffeinateController(ownerPID: 42) { executableURL, arguments in
+            invocations.append((executableURL, arguments))
+            let process = FakeWakeProcess(
+                processIdentifier: Int32(7_001 + processes.count),
+                runError: processes.isEmpty ? TestError.launchFailed : nil
+            )
+            processes.append(process)
+            return process
         }
 
         XCTAssertThrowsError(try controller.start())
         XCTAssertFalse(controller.isHolding)
         XCTAssertNil(controller.processIdentifier)
         XCTAssertFalse(controller.stop())
+
+        XCTAssertTrue(try controller.start())
+        XCTAssertEqual(invocations.count, 2)
+        XCTAssertEqual(invocations[1].0.path, "/usr/bin/caffeinate")
+        XCTAssertEqual(invocations[1].1, ["-ims", "-w", "42"])
+        XCTAssertEqual(controller.processIdentifier, 7_002)
+
+        let stopped = expectation(description: "retry process stopped")
+        controller.stateChangeHandler = stopped.fulfill
+        XCTAssertTrue(controller.stop())
+        processes[1].finishTermination()
+        await fulfillment(of: [stopped], timeout: 1)
+        XCTAssertFalse(controller.isHolding)
     }
 
     func testUnexpectedExitClearsTheHoldAndReportsIt() async throws {

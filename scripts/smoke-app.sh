@@ -38,7 +38,7 @@ trap cleanup EXIT
 "${binary}" &
 app_pid=$!
 sleep 1
-app_state="$(ps -p "${app_pid}" -o state= | tr -d ' ')"
+app_state="$(ps -p "${app_pid}" -o state= 2>/dev/null | tr -d ' ' || true)"
 if [[ -z "${app_state}" || "${app_state}" == Z* ]]; then
   echo "error: slopwake exited during launch" >&2
   exit 1
