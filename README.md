@@ -43,6 +43,26 @@ open Slopwake.xcodeproj
 The system bolt is temporary development artwork and is not a publishable
 product mark.
 
+## Notarized smoke build
+
+An authorized workstation can consume the adjacent private `uinaf/vault`
+payload through a process boundary and produce a Developer ID-signed, notarized,
+stapled smoke artifact:
+
+```sh
+make build
+sops exec-env --same-process \
+  ../vault/secrets/shared/uinaf-macos-release-signing.sops.json \
+  'make notarized-smoke'
+```
+
+The build runs before the release credentials enter the environment. The
+notarization command verifies a checksum-pinned `rcodesign` archive on every
+run, writes only a fully validated app and ZIP below ignored `.artifacts`, and
+removes all decoded certificate, certificate-password, and notary-key material
+before returning. It does not import the signing identity into a macOS
+keychain.
+
 ## Release gates
 
 A release still requires a universal Developer ID signature, hardened-runtime

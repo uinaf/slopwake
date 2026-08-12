@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := verify
 
-.PHONY: project test build smoke verify clean
+.PHONY: project test build smoke notarized-smoke verify clean
 
 project:
 	./scripts/generate-project.sh
@@ -21,6 +21,9 @@ build: project
 
 smoke: build
 	./scripts/smoke-app.sh
+
+notarized-smoke:
+	./scripts/notarize-smoke.sh
 
 verify: test smoke
 
