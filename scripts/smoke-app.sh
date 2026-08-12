@@ -29,13 +29,20 @@ cleanup() {
   if [[ -n "${app_pid}" ]] && kill -0 "${app_pid}" 2>/dev/null; then
     kill -TERM "${app_pid}"
   fi
+  if [[ -n "${app_pid}" ]]; then
+    wait "${app_pid}" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
 "${binary}" &
 app_pid=$!
-sleep 0.1
-kill -0 "${app_pid}"
+sleep 1
+app_state="$(ps -p "${app_pid}" -o state= | tr -d ' ')"
+if [[ -z "${app_state}" || "${app_state}" == Z* ]]; then
+  echo "error: slopwake exited during launch" >&2
+  exit 1
+fi
 kill -TERM "${app_pid}"
 termination_deadline=$((SECONDS + 10))
 while ((SECONDS < termination_deadline)); do
@@ -47,4 +54,5 @@ if kill -0 "${app_pid}" 2>/dev/null; then
   echo "error: slopwake did not terminate" >&2
   exit 1
 fi
+wait "${app_pid}" 2>/dev/null || true
 trap - EXIT

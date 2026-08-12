@@ -16,7 +16,7 @@ Requirements:
 
 Run the core tests, build the universal app, inspect both architectures, apply
 and verify an ad-hoc hardened-runtime signature, then launch and terminate the
-real app bundle:
+Release executable:
 
 ```sh
 make verify
