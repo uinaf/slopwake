@@ -19,7 +19,8 @@ struct SlopwakeApp: App {
             WakeMenu(model: model)
                 .font(.system(.body, design: .monospaced))
         } label: {
-            Image(systemName: model.isHolding ? "bolt.fill" : "bolt")
+            Image(model.isHolding ? "MenuActive" : "MenuIdle")
+                .renderingMode(.template)
                 .accessibilityLabel("slopwake · \(model.statusText)")
         }
         .menuBarExtraStyle(.menu)
