@@ -346,6 +346,24 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertTrue(detector.update(processes: [codex], at: time(1)).shouldHold)
     }
 
+    func testDisabledDesktopHelperIsNotReclassifiedAsCLI() {
+        var detector = AgentActivityDetector()
+        let desktop = sample(
+            pid: 110,
+            name: "Claude",
+            bundle: "com.anthropic.claudefordesktop"
+        )
+        let helper = sample(pid: 111, parent: 110, name: "claude", terminal: false)
+
+        let state = detector.update(
+            processes: [desktop, helper],
+            at: time(0),
+            enabledSurfaces: Set([.claudeCLI])
+        )
+        XCTAssertFalse(state.shouldHold)
+        XCTAssertTrue(state.sources.isEmpty)
+    }
+
     private func time(_ seconds: UInt64) -> MonotonicTime {
         MonotonicTime(seconds: seconds)
     }

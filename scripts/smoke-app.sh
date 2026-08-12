@@ -26,7 +26,7 @@ fi
 
 fixture_root="$(mktemp -d .artifacts/slopwake-smoke.XXXXXX)"
 xcrun clang scripts/fixtures/headless-agent.c -o "${fixture_root}/codex"
-"${fixture_root}/codex" 30 &
+"${fixture_root}/codex" &
 fixture_pid=$!
 app_pid=""
 caffeinate_pid=""

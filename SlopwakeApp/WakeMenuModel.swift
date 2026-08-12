@@ -31,7 +31,6 @@ final class WakeMenuModel {
         }
         controller.unexpectedTerminationHandler = { [weak self] in
             self?.errorMessage = "Wake hold stopped unexpectedly"
-            self?.reconcileWakeHold()
         }
         automaticMonitor.stateChangeHandler = { [weak self] state in
             self?.automaticState = state

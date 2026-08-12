@@ -107,7 +107,6 @@ public struct AgentActivityDetector: Sendable {
     private struct SessionState: Sendable {
         var lastCPUTimeNanoseconds: UInt64
         var lastActivity: MonotonicTime?
-        var lastEvidence: AgentActivityEvidence?
     }
 
     private let quietPeriodSeconds: UInt64
@@ -115,7 +114,6 @@ public struct AgentActivityDetector: Sendable {
     private var sessions: [SessionKey: SessionState] = [:]
     private var holdStartedAt: MonotonicTime?
     private var ceilingBlocked = false
-    private var lastObservedSources: [AutomaticWakeSource] = []
 
     public init(
         quietPeriodSeconds: UInt64 = Self.defaultQuietPeriodSeconds,
@@ -136,14 +134,14 @@ public struct AgentActivityDetector: Sendable {
             processesByIdentifier[process.identity.processIdentifier] = process
         }
         let normalizedProcesses = Array(processesByIdentifier.values)
-        let desktopRoots = desktopRootProcesses(
-            in: normalizedProcesses,
-            enabledSurfaces: enabledSurfaces
-        )
+        let desktopRoots = desktopRootProcesses(in: normalizedProcesses)
         var currentSessionKeys: Set<SessionKey> = []
         var evidenceBySurface: [AgentSurface: AgentActivityEvidence] = [:]
 
         for (surface, roots) in desktopRoots {
+            guard enabledSurfaces.contains(surface) else {
+                continue
+            }
             for root in roots {
                 let sessionKey = SessionKey(surface: surface, identity: root.identity)
                 currentSessionKeys.insert(sessionKey)
@@ -191,8 +189,7 @@ public struct AgentActivityDetector: Sendable {
             } else {
                 sessions[sessionKey] = SessionState(
                     lastCPUTimeNanoseconds: process.cumulativeCPUTimeNanoseconds,
-                    lastActivity: now,
-                    lastEvidence: .activeProcess
+                    lastActivity: now
                 )
                 evidence = .activeProcess
             }
@@ -217,8 +214,6 @@ public struct AgentActivityDetector: Sendable {
         let sources = evidenceBySurface
             .map { AutomaticWakeSource(surface: $0.key, evidence: $0.value) }
             .sorted { $0.surface.rawValue < $1.surface.rawValue }
-        lastObservedSources = sources
-
         return resolveHoldState(sources: sources, at: now)
     }
 
@@ -235,7 +230,6 @@ public struct AgentActivityDetector: Sendable {
         let sources = evidenceBySurface
             .map { AutomaticWakeSource(surface: $0.key, evidence: $0.value) }
             .sorted { $0.surface.rawValue < $1.surface.rawValue }
-        lastObservedSources = sources
         return resolveHoldState(sources: sources, at: now)
     }
 
@@ -274,8 +268,7 @@ public struct AgentActivityDetector: Sendable {
     ) -> AgentActivityEvidence? {
         var session = sessions[sessionKey] ?? SessionState(
             lastCPUTimeNanoseconds: sample.cumulativeCPUTimeNanoseconds,
-            lastActivity: nil,
-            lastEvidence: nil
+            lastActivity: nil
         )
         let cpuTimeDelta = sample.cumulativeCPUTimeNanoseconds >= session.lastCPUTimeNanoseconds
             ? sample.cumulativeCPUTimeNanoseconds - session.lastCPUTimeNanoseconds
@@ -294,7 +287,6 @@ public struct AgentActivityDetector: Sendable {
         } else {
             evidence = nil
         }
-        session.lastEvidence = evidence
         sessions[sessionKey] = session
         return evidence
     }
@@ -311,14 +303,12 @@ public struct AgentActivityDetector: Sendable {
     }
 
     private func desktopRootProcesses(
-        in processes: [AgentProcessSample],
-        enabledSurfaces: Set<AgentSurface>
+        in processes: [AgentProcessSample]
     ) -> [AgentSurface: [AgentProcessSample]] {
         var roots: [AgentSurface: [AgentProcessSample]] = [:]
         for process in processes {
             guard let bundleIdentifier = process.bundleIdentifier?.lowercased(),
-                  let surface = Self.desktopBundleIdentifiers[bundleIdentifier],
-                  enabledSurfaces.contains(surface) else {
+                  let surface = Self.desktopBundleIdentifiers[bundleIdentifier] else {
                 continue
             }
             roots[surface, default: []].append(process)
