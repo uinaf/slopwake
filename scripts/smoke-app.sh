@@ -24,26 +24,17 @@ if pgrep -x slopwake >/dev/null; then
   exit 1
 fi
 
-open -n "${app}"
 app_pid=""
-launch_deadline=$((SECONDS + 10))
-while ((SECONDS < launch_deadline)); do
-  app_pid="$(pgrep -x slopwake || true)"
-  [[ -n "${app_pid}" ]] && break
-  sleep 0.01
-done
-if [[ -z "${app_pid}" ]]; then
-  echo "error: LaunchServices did not launch slopwake.app" >&2
-  exit 1
-fi
-
 cleanup() {
-  if kill -0 "${app_pid}" 2>/dev/null; then
+  if [[ -n "${app_pid}" ]] && kill -0 "${app_pid}" 2>/dev/null; then
     kill -TERM "${app_pid}"
   fi
 }
 trap cleanup EXIT
 
+"${binary}" &
+app_pid=$!
+sleep 0.1
 kill -0 "${app_pid}"
 kill -TERM "${app_pid}"
 termination_deadline=$((SECONDS + 10))

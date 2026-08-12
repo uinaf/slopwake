@@ -182,6 +182,7 @@ final class CaffeinateControllerTests: XCTestCase {
         ]
         owner.standardOutput = output
         try owner.run()
+        try output.fileHandleForWriting.close()
         defer {
             if owner.isRunning {
                 owner.terminate()
@@ -189,7 +190,10 @@ final class CaffeinateControllerTests: XCTestCase {
             }
         }
 
-        let line = try readLine(from: output.fileHandleForReading)
+        let line = try readLine(
+            from: output.fileHandleForReading,
+            timeoutMilliseconds: 1_000
+        )
         let childPID = try XCTUnwrap(Int32(line.trimmingCharacters(in: .whitespacesAndNewlines)))
         defer {
             terminateAndConfirmExit(processIdentifier: childPID)
@@ -229,7 +233,21 @@ final class CaffeinateControllerTests: XCTestCase {
         XCTAssertEqual(kill(processIdentifier, 0), -1)
     }
 
-    private func readLine(from handle: FileHandle) throws -> String {
+    private func readLine(
+        from handle: FileHandle,
+        timeoutMilliseconds: Int32
+    ) throws -> String {
+        var descriptor = pollfd(
+            fd: handle.fileDescriptor,
+            events: Int16(POLLIN),
+            revents: 0
+        )
+        let pollResult = poll(&descriptor, 1, timeoutMilliseconds)
+        XCTAssertGreaterThan(pollResult, 0, "timed out waiting for child process identifier")
+        guard pollResult > 0 else {
+            throw TestError.readTimedOut
+        }
+
         var data = Data()
         while true {
             guard let byte = try handle.read(upToCount: 1), !byte.isEmpty else {
@@ -246,6 +264,7 @@ final class CaffeinateControllerTests: XCTestCase {
 
 private enum TestError: Error {
     case launchFailed
+    case readTimedOut
 }
 
 private final class FakeWakeProcess: WakeProcess {

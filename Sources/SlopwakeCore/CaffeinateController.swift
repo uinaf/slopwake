@@ -17,6 +17,10 @@ extension Process: WakeProcess {
     }
 
     public func forceTerminate() {
+        let processIdentifier = processIdentifier
+        guard processIdentifier > 0 else {
+            return
+        }
         kill(processIdentifier, SIGKILL)
     }
 }
