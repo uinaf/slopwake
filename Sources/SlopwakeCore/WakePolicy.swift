@@ -26,19 +26,30 @@ public enum AutomaticPauseDuration: UInt64, CaseIterable, Sendable {
     }
 }
 
+public enum BatteryPowerSource: Equatable, Sendable {
+    case battery
+    case external
+    case unknown
+}
+
 public struct BatteryState: Equatable, Sendable {
     public let percentage: Int?
-    public let isUsingBatteryPower: Bool
-
-    public init(percentage: Int?, isUsingBatteryPower: Bool) {
-        self.percentage = percentage
-        self.isUsingBatteryPower = isUsingBatteryPower
-    }
+    public let powerSource: BatteryPowerSource
 
     public static let unknown = BatteryState(
         percentage: nil,
-        isUsingBatteryPower: false
+        powerSource: .unknown
     )
+
+    public static let externalPower = BatteryState(
+        percentage: nil,
+        powerSource: .external
+    )
+
+    public init(percentage: Int?, powerSource: BatteryPowerSource) {
+        self.percentage = percentage
+        self.powerSource = powerSource
+    }
 }
 
 public enum WakeMenuStatus: Equatable, Sendable {
@@ -165,8 +176,9 @@ public struct WakePolicy: Sendable {
 
         if let cutoff = batteryCutoffPercentage,
            cutoff > 0,
-           battery.isUsingBatteryPower,
-           battery.percentage.map({ $0 <= cutoff }) ?? true,
+           battery.powerSource != .external,
+           battery.powerSource == .unknown ||
+               battery.percentage.map({ $0 <= cutoff }) ?? true,
            hasDemand {
             automaticStartedAt = nil
             return WakePolicyState(

@@ -25,13 +25,21 @@ struct BatterySnapshotSource: Sendable {
             } else {
                 nil
             }
+            let powerSource: BatteryPowerSource = switch description[kIOPSPowerSourceStateKey]
+                as? String {
+            case kIOPSBatteryPowerValue:
+                .battery
+            case kIOPSACPowerValue:
+                .external
+            default:
+                .unknown
+            }
             return BatteryState(
                 percentage: percentage,
-                isUsingBatteryPower: description[kIOPSPowerSourceStateKey] as? String ==
-                    kIOPSBatteryPowerValue
+                powerSource: powerSource
             )
         }
-        return .unknown
+        return .externalPower
     }
 }
 

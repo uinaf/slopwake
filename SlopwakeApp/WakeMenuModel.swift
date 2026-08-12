@@ -228,6 +228,7 @@ final class WakeMenuModel {
                 wakeErrorMessage = nil
             }
         } catch {
+            wakeHoldFailed = true
             wakeErrorMessage = "could not start wake hold"
         }
         isHolding = controller.isHolding

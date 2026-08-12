@@ -9,7 +9,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: automatic(.codexCLI),
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(10)
             ),
@@ -27,7 +27,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: automatic(.codexCLI),
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(1_800)
             ).status,
@@ -42,7 +42,7 @@ final class WakePolicyTests: XCTestCase {
             XCTAssertTrue(
                 policy.evaluate(
                     automatic: idle,
-                    battery: .unknown,
+                    battery: .externalPower,
                     batteryCutoffPercentage: 15,
                     at: time(100 + duration.rawValue - 1)
                 ).shouldHold
@@ -50,7 +50,7 @@ final class WakePolicyTests: XCTestCase {
             XCTAssertEqual(
                 policy.evaluate(
                     automatic: idle,
-                    battery: .unknown,
+                    battery: .externalPower,
                     batteryCutoffPercentage: 15,
                     at: time(100 + duration.rawValue)
                 ).status,
@@ -65,7 +65,7 @@ final class WakePolicyTests: XCTestCase {
 
         let paused = policy.evaluate(
             automatic: automatic(.claudeDesktop),
-            battery: .unknown,
+            battery: .externalPower,
             batteryCutoffPercentage: 15,
             at: time(1)
         )
@@ -76,7 +76,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: automatic(.claudeDesktop),
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(1_800)
             ).status,
@@ -91,7 +91,7 @@ final class WakePolicyTests: XCTestCase {
 
         let manual = policy.evaluate(
             automatic: automatic(.cursorCLI),
-            battery: .unknown,
+            battery: .externalPower,
             batteryCutoffPercentage: 15,
             at: time(20)
         )
@@ -105,7 +105,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: automatic(.cursorCLI),
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(21)
             ).status,
@@ -116,7 +116,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertTrue(
             policy.evaluate(
                 automatic: automatic(.cursorCLI),
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(22)
             ).shouldHold
@@ -129,7 +129,7 @@ final class WakePolicyTests: XCTestCase {
 
         let limited = policy.evaluate(
             automatic: automatic,
-            battery: BatteryState(percentage: 15, isUsingBatteryPower: true),
+            battery: BatteryState(percentage: 15, powerSource: .battery),
             batteryCutoffPercentage: 15,
             at: time(0)
         )
@@ -139,7 +139,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertTrue(
             policy.evaluate(
                 automatic: automatic,
-                battery: BatteryState(percentage: 16, isUsingBatteryPower: true),
+                battery: BatteryState(percentage: 16, powerSource: .battery),
                 batteryCutoffPercentage: 15,
                 at: time(1)
             ).shouldHold
@@ -147,7 +147,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertTrue(
             policy.evaluate(
                 automatic: automatic,
-                battery: BatteryState(percentage: 1, isUsingBatteryPower: true),
+                battery: BatteryState(percentage: 1, powerSource: .battery),
                 batteryCutoffPercentage: nil,
                 at: time(2)
             ).shouldHold
@@ -158,7 +158,7 @@ final class WakePolicyTests: XCTestCase {
         var policy = WakePolicy()
         let limited = policy.evaluate(
             automatic: automatic(.codexCLI),
-            battery: BatteryState(percentage: nil, isUsingBatteryPower: true),
+            battery: BatteryState(percentage: nil, powerSource: .battery),
             batteryCutoffPercentage: 15,
             at: time(0)
         )
@@ -174,6 +174,35 @@ final class WakePolicyTests: XCTestCase {
         )
     }
 
+    func testBatteryCutoffFailsSafeWhenPowerSourceIsUnknown() {
+        var policy = WakePolicy()
+        let limited = policy.evaluate(
+            automatic: automatic(.codexCLI),
+            battery: .unknown,
+            batteryCutoffPercentage: 15,
+            at: time(0)
+        )
+
+        XCTAssertFalse(limited.shouldHold)
+        XCTAssertEqual(
+            limited.status,
+            .batteryLimited(percentage: nil, cutoffPercentage: 15)
+        )
+    }
+
+    func testBatteryCutoffDoesNotLimitExternalPowerWithoutABattery() {
+        var policy = WakePolicy()
+
+        XCTAssertTrue(
+            policy.evaluate(
+                automatic: automatic(.codexCLI),
+                battery: .externalPower,
+                batteryCutoffPercentage: 15,
+                at: time(0)
+            ).shouldHold
+        )
+    }
+
     func testCeilingStateIsVisibleAndManualCanStillHold() {
         var policy = WakePolicy()
         let limited = AutomaticWakeState(
@@ -184,7 +213,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: limited,
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(0)
             ).status,
@@ -195,7 +224,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertTrue(
             policy.evaluate(
                 automatic: limited,
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(2)
             ).shouldHold
@@ -208,7 +237,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: idle,
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(99)
             ).status,
@@ -220,7 +249,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 automatic: idle,
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(99)
             ).status,
@@ -237,7 +266,7 @@ final class WakePolicyTests: XCTestCase {
         XCTAssertEqual(
             restarted.evaluate(
                 automatic: idle,
-                battery: .unknown,
+                battery: .externalPower,
                 batteryCutoffPercentage: 15,
                 at: time(1)
             ),

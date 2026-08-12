@@ -34,6 +34,26 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testLaunchFailureRequiresExplicitRetry() {
+        withModel { model, controller, automatic, _, _ in
+            controller.startError = TestError.unavailable
+            model.startManualHold(.oneHour)
+            automatic.publish(automatic.state)
+            automatic.publish(automatic.state)
+
+            XCTAssertFalse(model.isHolding)
+            XCTAssertEqual(model.wakeErrorMessage, "could not start wake hold")
+            XCTAssertEqual(controller.startCount, 1)
+
+            controller.startError = nil
+            model.retryWakeHold()
+
+            XCTAssertTrue(model.isHolding)
+            XCTAssertNil(model.wakeErrorMessage)
+            XCTAssertEqual(controller.startCount, 2)
+        }
+    }
+
     func testExitObservedDuringReconcileKeepsRetryMessageVisible() {
         withModel { model, controller, automatic, _, _ in
             model.startManualHold(.oneHour)
@@ -180,9 +200,13 @@ private final class FakeWakeController: WakeHolding {
     private(set) var stopCount = 0
     private(set) var startCount = 0
     var observeUnexpectedExitOnNextStart = false
+    var startError: Error?
 
     func start(preventDisplaySleep: Bool) throws -> Bool {
         startCount += 1
+        if let startError {
+            throw startError
+        }
         if observeUnexpectedExitOnNextStart {
             observeUnexpectedExitOnNextStart = false
             isHolding = false
@@ -231,7 +255,7 @@ private final class FakeAutomaticMonitor: AutomaticWakeMonitoring {
 
 @MainActor
 private final class FakeBatteryMonitor: BatteryMonitoring {
-    var state = BatteryState.unknown
+    var state = BatteryState.externalPower
     var stateChangeHandler: ((BatteryState) -> Void)?
 
     func start() {}
