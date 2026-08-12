@@ -59,6 +59,50 @@ final class CaffeinateControllerTests: XCTestCase {
         await fulfillment(of: [stopped], timeout: 1)
     }
 
+    func testStartReplacesAProcessWithPendingTermination() async throws {
+        var processes: [FakeWakeProcess] = []
+        let controller = CaffeinateController { _, _ in
+            let process = FakeWakeProcess(
+                processIdentifier: Int32(7_001 + processes.count),
+                ignoresTerminate: true
+            )
+            processes.append(process)
+            return process
+        }
+
+        XCTAssertTrue(try controller.start())
+        XCTAssertTrue(controller.stop())
+        XCTAssertTrue(try controller.start())
+
+        XCTAssertEqual(processes.count, 2)
+        XCTAssertEqual(processes[0].forceTerminateCount, 1)
+        XCTAssertEqual(processes[0].waitCount, 1)
+        XCTAssertEqual(controller.processIdentifier, 7_002)
+
+        let stopped = expectation(description: "replacement process stopped")
+        controller.stateChangeHandler = stopped.fulfill
+        XCTAssertTrue(controller.stop())
+        processes[1].finishTermination()
+        await fulfillment(of: [stopped], timeout: 1)
+    }
+
+    func testDefaultOwnerPIDIsPassedToCaffeinate() throws {
+        var arguments: [String] = []
+        let process = FakeWakeProcess()
+        let controller = CaffeinateController { _, receivedArguments in
+            arguments = receivedArguments
+            return process
+        }
+
+        XCTAssertTrue(try controller.start())
+        XCTAssertEqual(
+            arguments,
+            ["-ims", "-w", String(ProcessInfo.processInfo.processIdentifier)]
+        )
+        XCTAssertTrue(controller.stop())
+        process.finishTermination()
+    }
+
     func testLaunchFailureDoesNotClaimAHoldAndCanBeRetried() async throws {
         var invocations: [(URL, [String])] = []
         var processes: [FakeWakeProcess] = []

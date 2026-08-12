@@ -70,9 +70,14 @@ public final class CaffeinateController {
     public func start() throws -> Bool {
         if let process {
             if process.isRunning {
-                return false
+                guard requestedTerminationToken == activeProcessToken,
+                      let activeProcessToken else {
+                    return false
+                }
+                process.forceTerminate()
+                processDidTerminate(token: activeProcessToken)
             }
-            if let activeProcessToken {
+            if let activeProcessToken = self.activeProcessToken {
                 processDidTerminate(token: activeProcessToken)
             }
         }
