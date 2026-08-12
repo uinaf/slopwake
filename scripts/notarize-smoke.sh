@@ -121,23 +121,27 @@ done
 
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
 notary_result="${secret_root}/notary-result.plist"
+submit_failed=false
 xcrun notarytool submit "${archive}" \
   --key "${notary_key}" \
   --key-id "${APPLE_NOTARY_API_KEY_ID}" \
   --issuer "${APPLE_NOTARY_API_ISSUER_ID}" \
   --wait \
   --timeout 90m \
-  --output-format plist >"${notary_result}"
+  --output-format plist >"${notary_result}" || submit_failed=true
 
-notary_status="$(plutil -extract status raw -o - "${notary_result}")"
-submission_id="$(plutil -extract id raw -o - "${notary_result}")"
-if [[ "${notary_status}" != "Accepted" ]]; then
+notary_status="$(plutil -extract status raw -o - "${notary_result}" 2>/dev/null || true)"
+submission_id="$(plutil -extract id raw -o - "${notary_result}" 2>/dev/null || true)"
+if [[ "${submit_failed}" == true || "${notary_status}" != "Accepted" ]]; then
+  echo "notarization submission: ${submission_id:-unavailable}" >&2
+  if [[ -n "${submission_id}" ]]; then
   xcrun notarytool log \
     --key "${notary_key}" \
     --key-id "${APPLE_NOTARY_API_KEY_ID}" \
     --issuer "${APPLE_NOTARY_API_ISSUER_ID}" \
     "${submission_id}" >&2 || true
-  fail "notarization submission ${submission_id} finished with ${notary_status}"
+  fi
+  fail "notarization failed with status ${notary_status:-unavailable}"
 fi
 
 xcrun stapler staple "${app}"
