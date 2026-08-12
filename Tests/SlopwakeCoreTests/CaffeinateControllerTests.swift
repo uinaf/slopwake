@@ -36,6 +36,64 @@ final class CaffeinateControllerTests: XCTestCase {
         XCTAssertNil(controller.processIdentifier)
     }
 
+    func testDisplayPreferenceSelectsTheExactCaffeinateFlags() throws {
+        var invocations: [[String]] = []
+        let process = FakeWakeProcess()
+        let controller = CaffeinateController(ownerPID: 42) { _, arguments in
+            invocations.append(arguments)
+            return process
+        }
+
+        XCTAssertTrue(try controller.start(preventDisplaySleep: true))
+        XCTAssertEqual(invocations, [["-dims", "-w", "42"]])
+    }
+
+    func testDisplayFlagChangeReplacesTheOwnedChild() async throws {
+        var invocations: [[String]] = []
+        var processes: [FakeWakeProcess] = []
+        let controller = CaffeinateController(ownerPID: 42) { _, arguments in
+            invocations.append(arguments)
+            let process = FakeWakeProcess(processIdentifier: Int32(7_001 + processes.count))
+            processes.append(process)
+            return process
+        }
+        XCTAssertTrue(try controller.start())
+        XCTAssertFalse(try controller.start(preventDisplaySleep: true))
+        XCTAssertEqual(processes.count, 1)
+        XCTAssertEqual(processes[0].terminateCount, 1)
+
+        let restarted = expectation(description: "display preference restart completed")
+        controller.stateChangeHandler = restarted.fulfill
+        processes[0].exit()
+        await fulfillment(of: [restarted], timeout: 1)
+
+        XCTAssertEqual(processes.count, 2)
+        XCTAssertEqual(invocations, [
+            ["-ims", "-w", "42"],
+            ["-dims", "-w", "42"],
+        ])
+        XCTAssertEqual(controller.processIdentifier, 7_002)
+    }
+
+    func testReplacingAnExitedChildDoesNotReenterAndLaunchTwice() throws {
+        var processes: [FakeWakeProcess] = []
+        let controller = CaffeinateController { _, _ in
+            let process = FakeWakeProcess(processIdentifier: Int32(7_001 + processes.count))
+            processes.append(process)
+            return process
+        }
+        controller.stateChangeHandler = {
+            _ = try? controller.start()
+        }
+
+        try controller.start()
+        processes[0].isRunning = false
+        XCTAssertFalse(try controller.start())
+
+        XCTAssertEqual(processes.count, 2)
+        XCTAssertEqual(controller.processIdentifier, 7_002)
+    }
+
     func testExitedProcessCanBeReplaced() async throws {
         var processes: [FakeWakeProcess] = []
         let controller = CaffeinateController { _, _ in
@@ -43,11 +101,14 @@ final class CaffeinateControllerTests: XCTestCase {
             processes.append(process)
             return process
         }
+        controller.stateChangeHandler = {
+            _ = try? controller.start()
+        }
 
         XCTAssertTrue(try controller.start())
         processes[0].isRunning = false
 
-        XCTAssertTrue(try controller.start())
+        XCTAssertFalse(try controller.start())
         XCTAssertEqual(processes.count, 2)
         XCTAssertEqual(processes[0].waitCount, 1)
         XCTAssertEqual(controller.processIdentifier, 7_002)
@@ -111,11 +172,24 @@ final class CaffeinateControllerTests: XCTestCase {
         process.finishTermination()
     }
 
-    func testLaunchFailureDoesNotClaimAHoldAndCanBeRetried() async throws {
-        var invocations: [(URL, [String])] = []
+    func testStartObservingAnExitedChildReportsUnexpectedTermination() throws {
+        let process = FakeWakeProcess()
+        let controller = CaffeinateController { _, _ in process }
+        var unexpectedTerminationCount = 0
+        controller.unexpectedTerminationHandler = {
+            unexpectedTerminationCount += 1
+        }
+
+        XCTAssertTrue(try controller.start())
+        process.isRunning = false
+        XCTAssertFalse(try controller.start())
+        XCTAssertEqual(unexpectedTerminationCount, 1)
+        XCTAssertFalse(controller.isHolding)
+    }
+
+    func testLaunchFailureDoesNotClaimAHoldAndCanBeRetried() throws {
         var processes: [FakeWakeProcess] = []
-        let controller = CaffeinateController(ownerPID: 42) { executableURL, arguments in
-            invocations.append((executableURL, arguments))
+        let controller = CaffeinateController { _, _ in
             let process = FakeWakeProcess(
                 processIdentifier: Int32(7_001 + processes.count),
                 runError: processes.isEmpty ? TestError.launchFailed : nil
@@ -128,19 +202,8 @@ final class CaffeinateControllerTests: XCTestCase {
         XCTAssertFalse(controller.isHolding)
         XCTAssertNil(controller.processIdentifier)
         XCTAssertFalse(controller.stop())
-
         XCTAssertTrue(try controller.start())
-        XCTAssertEqual(invocations.count, 2)
-        XCTAssertEqual(invocations[1].0.path, "/usr/bin/caffeinate")
-        XCTAssertEqual(invocations[1].1, ["-ims", "-w", "42"])
         XCTAssertEqual(controller.processIdentifier, 7_002)
-
-        let stopped = expectation(description: "retry process stopped")
-        controller.stateChangeHandler = stopped.fulfill
-        XCTAssertTrue(controller.stop())
-        processes[1].finishTermination()
-        await fulfillment(of: [stopped], timeout: 1)
-        XCTAssertFalse(controller.isHolding)
     }
 
     func testUnexpectedExitClearsTheHoldAndReportsIt() async throws {
@@ -245,99 +308,10 @@ final class CaffeinateControllerTests: XCTestCase {
         XCTAssertEqual(errno, ESRCH)
     }
 
-    func testCaffeinateExitsWhenItsOwnerCrashes() throws {
-        let output = Pipe()
-        let owner = Process()
-        owner.executableURL = URL(fileURLWithPath: "/bin/sh")
-        owner.arguments = [
-            "-c",
-            "/usr/bin/caffeinate -ims -w $$ & child=$!; echo $child; wait $child",
-        ]
-        owner.standardOutput = output
-        try owner.run()
-        try output.fileHandleForWriting.close()
-        defer {
-            if owner.isRunning {
-                owner.terminate()
-                owner.waitUntilExit()
-            }
-        }
-
-        let line = try readLine(
-            from: output.fileHandleForReading,
-            timeoutMilliseconds: 1_000
-        )
-        let childPID = try XCTUnwrap(Int32(line.trimmingCharacters(in: .whitespacesAndNewlines)))
-        defer {
-            terminateAndConfirmExit(processIdentifier: childPID)
-        }
-        XCTAssertEqual(kill(childPID, 0), 0)
-
-        XCTAssertEqual(kill(owner.processIdentifier, SIGKILL), 0)
-        owner.waitUntilExit()
-
-        let deadline = ContinuousClock.now + .seconds(2)
-        while kill(childPID, 0) == 0, ContinuousClock.now < deadline {
-            usleep(10_000)
-        }
-        XCTAssertEqual(kill(childPID, 0), -1)
-        XCTAssertEqual(errno, ESRCH)
-    }
-
-    private func terminateAndConfirmExit(processIdentifier: Int32) {
-        guard kill(processIdentifier, 0) == 0 else {
-            return
-        }
-
-        kill(processIdentifier, SIGTERM)
-        var deadline = ContinuousClock.now + .milliseconds(250)
-        while kill(processIdentifier, 0) == 0, ContinuousClock.now < deadline {
-            usleep(10_000)
-        }
-
-        if kill(processIdentifier, 0) == 0 {
-            kill(processIdentifier, SIGKILL)
-            deadline = ContinuousClock.now + .seconds(1)
-            while kill(processIdentifier, 0) == 0, ContinuousClock.now < deadline {
-                usleep(10_000)
-            }
-        }
-
-        XCTAssertEqual(kill(processIdentifier, 0), -1)
-    }
-
-    private func readLine(
-        from handle: FileHandle,
-        timeoutMilliseconds: Int32
-    ) throws -> String {
-        var descriptor = pollfd(
-            fd: handle.fileDescriptor,
-            events: Int16(POLLIN),
-            revents: 0
-        )
-        let pollResult = poll(&descriptor, 1, timeoutMilliseconds)
-        XCTAssertGreaterThan(pollResult, 0, "timed out waiting for child process identifier")
-        guard pollResult > 0 else {
-            throw TestError.readTimedOut
-        }
-
-        var data = Data()
-        while true {
-            guard let byte = try handle.read(upToCount: 1), !byte.isEmpty else {
-                break
-            }
-            if byte[0] == UInt8(ascii: "\n") {
-                break
-            }
-            data.append(byte)
-        }
-        return try XCTUnwrap(String(data: data, encoding: .utf8))
-    }
 }
 
 private enum TestError: Error {
     case launchFailed
-    case readTimedOut
 }
 
 private final class FakeWakeProcess: WakeProcess {

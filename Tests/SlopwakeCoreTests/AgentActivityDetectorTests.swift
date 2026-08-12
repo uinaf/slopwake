@@ -377,6 +377,58 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertTrue(state.sources.isEmpty)
     }
 
+    func testAutomaticStateCanBeRestrictedImmediatelyAfterPreferenceChange() {
+        let state = AutomaticWakeState(
+            shouldHold: true,
+            sources: [
+                AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
+                AutomaticWakeSource(surface: .claudeCLI, evidence: .recentActivity),
+            ],
+            isCeilingLimited: false
+        )
+
+        XCTAssertEqual(
+            state.restricted(to: Set([.claudeCLI])),
+            AutomaticWakeState(
+                shouldHold: true,
+                sources: [
+                    AutomaticWakeSource(surface: .claudeCLI, evidence: .recentActivity),
+                ],
+                isCeilingLimited: false
+            )
+        )
+        XCTAssertEqual(
+            state.restricted(to: []),
+            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+        )
+
+        let limited = AutomaticWakeState(
+            shouldHold: false,
+            sources: [
+                AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
+            ],
+            isCeilingLimited: true
+        )
+        XCTAssertEqual(
+            limited.restricted(to: Set([.claudeCLI])),
+            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+        )
+    }
+
+    func testSnapshotFailureDoesNotRestoreDisabledSurface() {
+        var detector = AgentActivityDetector()
+        let codex = sample(pid: 101, name: "codex", terminal: false)
+
+        XCTAssertTrue(detector.update(processes: [codex], at: time(0)).shouldHold)
+        XCTAssertEqual(
+            detector.tickWithoutSnapshot(
+                at: time(1),
+                enabledSurfaces: Set([.claudeCLI])
+            ),
+            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+        )
+    }
+
     private func time(_ seconds: UInt64) -> MonotonicTime {
         MonotonicTime(seconds: seconds)
     }

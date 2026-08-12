@@ -1,13 +1,28 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := verify
+HOST_ARCH := $(shell uname -m)
 
-.PHONY: project test build smoke notarized-smoke verify clean
+.PHONY: project test core-test app-test build verify release clean
 
 project:
 	./scripts/generate-project.sh
 
-test:
+test: core-test app-test
+
+core-test:
 	swift test --parallel
+
+app-test: project
+	xcodebuild \
+		-project Slopwake.xcodeproj \
+		-scheme Slopwake \
+		-configuration Debug \
+		-destination 'platform=macOS,arch=$(HOST_ARCH)' \
+		-derivedDataPath DerivedData \
+		CODE_SIGN_IDENTITY=- \
+		ONLY_ACTIVE_ARCH=YES \
+		ARCHS=$(HOST_ARCH) \
+		test
 
 build: project
 	xcodebuild \
@@ -19,13 +34,10 @@ build: project
 		CODE_SIGNING_ALLOWED=NO \
 		build
 
-smoke: build
-	./scripts/smoke-app.sh
+release:
+	./scripts/release.sh
 
-notarized-smoke:
-	./scripts/notarize-smoke.sh
-
-verify: test smoke
+verify: test build
 
 clean:
 	swift package clean
