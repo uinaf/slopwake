@@ -17,13 +17,20 @@ final class WakeMenuModelTests: XCTestCase {
     }
 
     func testUnexpectedExitReportsErrorWithoutRespawning() {
-        withModel { model, controller, _, _, _ in
+        withModel { model, controller, automatic, _, _ in
             model.startManualHold(.oneHour)
             controller.simulateUnexpectedExit()
+            automatic.publish(automatic.state)
 
             XCTAssertFalse(model.isHolding)
             XCTAssertEqual(model.wakeErrorMessage, "wake hold stopped unexpectedly")
             XCTAssertEqual(model.statusText, "idle · wake hold unavailable")
+            XCTAssertEqual(controller.startCount, 1)
+
+            model.retryWakeHold()
+            XCTAssertTrue(model.isHolding)
+            XCTAssertNil(model.wakeErrorMessage)
+            XCTAssertEqual(controller.startCount, 2)
         }
     }
 
@@ -143,8 +150,10 @@ private final class FakeWakeController: WakeHolding {
     var unexpectedTerminationHandler: (() -> Void)?
     private(set) var preventDisplaySleepInvocations: [Bool] = []
     private(set) var stopCount = 0
+    private(set) var startCount = 0
 
     func start(preventDisplaySleep: Bool) throws -> Bool {
+        startCount += 1
         preventDisplaySleepInvocations.append(preventDisplaySleep)
         let started = !isHolding
         isHolding = true
@@ -177,6 +186,11 @@ private final class FakeAutomaticMonitor: AutomaticWakeMonitoring {
 
     func start() {}
     func stop() {}
+
+    func publish(_ state: AutomaticWakeState) {
+        self.state = state
+        stateChangeHandler?(state)
+    }
 }
 
 @MainActor

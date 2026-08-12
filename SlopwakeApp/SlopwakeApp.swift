@@ -42,6 +42,9 @@ private struct WakeMenu: View {
         if let errorMessage = model.errorMessage {
             Text(errorMessage)
                 .font(.system(.caption, design: .monospaced))
+            if model.wakeErrorMessage != nil {
+                Button("retry wake hold", action: model.retryWakeHold)
+            }
         }
 
         Divider()

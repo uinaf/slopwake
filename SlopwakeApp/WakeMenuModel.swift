@@ -49,7 +49,9 @@ final class WakeMenuModel {
     @ObservationIgnored
     private var clockTask: Task<Void, Never>?
     @ObservationIgnored
-    private var suppressNextControllerReconcile = false
+    private var wakeHoldFailed = false
+    @ObservationIgnored
+    private var loginItemActionFailed = false
 
     init(
         controller: any WakeHolding,
@@ -79,14 +81,10 @@ final class WakeMenuModel {
                 return
             }
             isHolding = controller.isHolding
-            if suppressNextControllerReconcile {
-                suppressNextControllerReconcile = false
-            } else {
-                reconcileWakeHold()
-            }
+            reconcileWakeHold()
         }
         controller.unexpectedTerminationHandler = { [weak self] in
-            self?.suppressNextControllerReconcile = true
+            self?.wakeHoldFailed = true
             self?.wakeErrorMessage = "wake hold stopped unexpectedly"
         }
         automaticMonitor.stateChangeHandler = { [weak self] state in
@@ -112,6 +110,11 @@ final class WakeMenuModel {
 
     func endManualHold() {
         policy.endManualHold()
+        reconcileWakeHold()
+    }
+
+    func retryWakeHold() {
+        wakeHoldFailed = false
         reconcileWakeHold()
     }
 
@@ -153,9 +156,11 @@ final class WakeMenuModel {
             try loginItemController.setEnabled(enabled)
             loginItemState = loginItemController.state
             guard startsAtLogin == enabled else {
+                loginItemActionFailed = true
                 loginItemMessage = "could not change start at login"
                 return
             }
+            loginItemActionFailed = false
             preferenceStore.setStartsAtLogin(enabled)
             if loginItemState == .requiresApproval {
                 loginItemMessage = "start at login needs approval in System Settings"
@@ -164,6 +169,7 @@ final class WakeMenuModel {
             }
         } catch {
             loginItemState = loginItemController.state
+            loginItemActionFailed = true
             loginItemMessage = "could not change start at login"
         }
     }
@@ -203,11 +209,16 @@ final class WakeMenuModel {
         )
         do {
             if policyState.shouldHold {
+                guard !wakeHoldFailed else {
+                    isHolding = controller.isHolding
+                    return
+                }
                 try controller.start(
                     preventDisplaySleep: preferenceStore.value.preventsDisplaySleep
                 )
             } else {
                 controller.stop()
+                wakeHoldFailed = false
             }
             wakeErrorMessage = nil
         } catch {
@@ -220,6 +231,9 @@ final class WakeMenuModel {
         loginItemState = loginItemController.state
         if preferenceStore.value.startsAtLogin != startsAtLogin {
             preferenceStore.setStartsAtLogin(startsAtLogin)
+        }
+        guard !loginItemActionFailed else {
+            return
         }
         switch loginItemState {
         case .enabled, .disabled:
