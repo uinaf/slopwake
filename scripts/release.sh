@@ -18,6 +18,9 @@ for name in "${required[@]}"; do
   [[ -n "${!name:-}" ]] || fail "${name} is required"
 done
 
+[[ -n "${RELEASE_VERSION:-}" ]] || fail "RELEASE_VERSION is required"
+[[ "${RELEASE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "RELEASE_VERSION must be a stable semantic version"
+
 [[ "${APPLE_TEAM_ID}" =~ ^[A-Z0-9]{10}$ ]] || fail "APPLE_TEAM_ID is invalid"
 [[ "${APPLE_NOTARY_API_KEY_ID}" =~ ^[A-Z0-9]{10}$ ]] || fail "APPLE_NOTARY_API_KEY_ID is invalid"
 [[ "${APPLE_NOTARY_API_ISSUER_ID}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
@@ -25,6 +28,11 @@ done
 
 source_app="DerivedData/Build/Products/Release/slopwake.app"
 [[ -d "${source_app}" ]] || fail "Release app is missing; run make build first"
+source_version="$(plutil -extract CFBundleShortVersionString raw -o - "${source_app}/Contents/Info.plist")"
+[[ "${source_version}" == "${RELEASE_VERSION}" ]] ||
+  fail "Release app version ${source_version} does not match RELEASE_VERSION ${RELEASE_VERSION}"
+source_bundle_identifier="$(plutil -extract CFBundleIdentifier raw -o - "${source_app}/Contents/Info.plist")"
+[[ "${source_bundle_identifier}" == "dev.uinaf.slopwake" ]] || fail "Release app bundle identifier is invalid"
 source_executable="${source_app}/Contents/MacOS/slopwake"
 actual_architectures="$(
   lipo -archs "${source_executable}" |
@@ -39,6 +47,8 @@ rcodesign_download=""
 rcodesign_extract_root=""
 secret_root=""
 artifact_root=""
+final_root=""
+dist_archive=""
 release_complete=false
 cleanup() {
   [[ -z "${rcodesign_download}" ]] || rm -f "${rcodesign_download}"
@@ -46,6 +56,12 @@ cleanup() {
   [[ -z "${rcodesign_extract_root}" ]] || rm -rf "${rcodesign_extract_root}"
   if [[ "${release_complete}" != true && -n "${artifact_root}" ]]; then
     rm -rf "${artifact_root}"
+  fi
+  if [[ "${release_complete}" != true && -n "${final_root}" ]]; then
+    rm -rf "${final_root}"
+  fi
+  if [[ "${release_complete}" != true && -n "${dist_archive}" ]]; then
+    rm -f "${dist_archive}"
   fi
 }
 trap cleanup EXIT
@@ -153,11 +169,17 @@ rm -f "${archive}"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
 
 mkdir -p .artifacts/releases
-final_root=".artifacts/releases/slopwake-notarized.${submission_id}"
-[[ ! -e "${final_root}" ]] || fail "release output already exists: ${final_root}"
+candidate_final_root=".artifacts/releases/slopwake-${RELEASE_VERSION}.${submission_id}"
+[[ ! -e "${candidate_final_root}" ]] || fail "release output already exists: ${candidate_final_root}"
+final_root="${candidate_final_root}"
 mv "${artifact_root}" "${final_root}"
+mkdir -p dist
+candidate_dist_archive="dist/slopwake-${RELEASE_VERSION}-macos-universal.zip"
+[[ ! -e "${candidate_dist_archive}" ]] || fail "release asset already exists: ${candidate_dist_archive}"
+dist_archive="${candidate_dist_archive}"
+cp "${final_root}/slopwake-notarized.zip" "${dist_archive}"
 release_complete=true
 
 echo "notarization accepted: ${submission_id}"
 echo "notarized app: ${final_root}/slopwake.app"
-echo "notarized archive: ${final_root}/slopwake-notarized.zip"
+echo "notarized archive: ${dist_archive}"

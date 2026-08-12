@@ -1,8 +1,10 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := verify
 HOST_ARCH := $(shell uname -m)
+RELEASE_VERSION ?= $(shell sed -n '1p' VERSION)
+BUILD_NUMBER ?= 1
 
-.PHONY: project test core-test app-test build verify release clean
+.PHONY: project test core-test app-test release-check build verify release clean
 
 project:
 	./scripts/generate-project.sh
@@ -24,6 +26,9 @@ app-test: project
 		ARCHS=$(HOST_ARCH) \
 		test
 
+release-check:
+	./scripts/check-release-contract.sh
+
 build: project
 	xcodebuild \
 		-project Slopwake.xcodeproj \
@@ -32,12 +37,14 @@ build: project
 		-destination 'generic/platform=macOS' \
 		-derivedDataPath DerivedData \
 		CODE_SIGNING_ALLOWED=NO \
+		MARKETING_VERSION=$(RELEASE_VERSION) \
+		CURRENT_PROJECT_VERSION=$(BUILD_NUMBER) \
 		build
 
-release:
-	./scripts/release.sh
+release: build
+	RELEASE_VERSION=$(RELEASE_VERSION) ./scripts/release.sh
 
-verify: test build
+verify: test release-check build
 
 clean:
 	swift package clean

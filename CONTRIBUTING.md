@@ -25,8 +25,8 @@ Run the complete local gate:
 make verify
 ```
 
-This runs the Swift package tests, the Xcode-hosted app-model tests, and a
-warning-strict universal Release build.
+This runs the Swift package tests, the Xcode-hosted app-model tests, release
+contract checks, and a warning-strict universal Release build.
 
 Use a focused target while iterating:
 
@@ -34,7 +34,9 @@ Use a focused target while iterating:
 | --- | --- |
 | `make core-test` | Policy, detector, preference, and child-process contracts |
 | `make app-test` | App coordination through the hosted test target |
+| `make release-check` | Release configuration, version, and cask-generation contracts |
 | `make build` | Universal arm64 and x86_64 Release app |
+| `make release RELEASE_VERSION=x.y.z` | Signed and notarized local artifact; requires injected credentials |
 
 Prefer deterministic contract tests. Do not add tests whose only purpose is to
 re-prove macOS tool behavior or duplicate a contract already covered at a
