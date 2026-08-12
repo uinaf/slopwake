@@ -58,6 +58,7 @@ private struct WakeMenu: View {
 
         Button("quit slopwake", action: model.quit)
             .keyboardShortcut("q")
+            .onAppear(perform: model.refreshExternalState)
     }
 
     private var manualMenu: some View {

@@ -85,8 +85,8 @@ public final class CaffeinateController {
                 return false
             }
             if let activeProcessToken = self.activeProcessToken {
-                _ = clearProcess(token: activeProcessToken)
-                pendingStartPreventsDisplaySleep = nil
+                processDidTerminate(token: activeProcessToken)
+                return false
             }
         }
 

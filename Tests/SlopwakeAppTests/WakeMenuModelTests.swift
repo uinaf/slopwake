@@ -53,6 +53,21 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testReenablingDetectorRestoresCurrentMonitorEvidenceImmediately() {
+        let automatic = AutomaticWakeState(
+            shouldHold: true,
+            sources: [AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess)],
+            isCeilingLimited: false
+        )
+        withModel(automaticState: automatic) { model, _, _, _, _ in
+            model.setSurface(.codexCLI, enabled: false)
+            XCTAssertFalse(model.isHolding)
+
+            model.setSurface(.codexCLI, enabled: true)
+            XCTAssertTrue(model.isHolding)
+        }
+    }
+
     func testUnavailableLoginItemDoesNotPersistAnEnabledToggle() {
         withModel(loginItemState: .unavailable) { model, _, _, _, loginItem in
             loginItem.setError = TestError.unavailable

@@ -80,7 +80,7 @@ final class WakeMenuModel {
             guard let self else {
                 return
             }
-            isHolding = controller.isHolding
+            isHolding = self.controller.isHolding
             reconcileWakeHold()
         }
         controller.unexpectedTerminationHandler = { [weak self] in
@@ -118,6 +118,10 @@ final class WakeMenuModel {
         reconcileWakeHold()
     }
 
+    func refreshExternalState() {
+        refreshLoginItemState()
+    }
+
     func pauseAutomatic(_ duration: AutomaticPauseDuration) {
         policy.pauseAutomatic(for: duration, at: now)
         reconcileWakeHold()
@@ -137,7 +141,7 @@ final class WakeMenuModel {
         preferenceStore.setSurface(surface, enabled: enabled)
         let enabledSurfaces = preferenceStore.value.enabledSurfaces
         automaticMonitor.enabledSurfaces = enabledSurfaces
-        automaticState = automaticState.restricted(to: enabledSurfaces)
+        automaticState = automaticMonitor.state.restricted(to: enabledSurfaces)
         reconcileWakeHold()
     }
 
@@ -194,7 +198,6 @@ final class WakeMenuModel {
                 guard !Task.isCancelled, let self else {
                     return
                 }
-                refreshLoginItemState()
                 reconcileWakeHold()
             }
         }

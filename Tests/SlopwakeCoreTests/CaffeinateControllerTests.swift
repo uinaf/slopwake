@@ -88,7 +88,7 @@ final class CaffeinateControllerTests: XCTestCase {
 
         try controller.start()
         processes[0].isRunning = false
-        XCTAssertTrue(try controller.start())
+        XCTAssertFalse(try controller.start())
 
         XCTAssertEqual(processes.count, 2)
         XCTAssertEqual(controller.processIdentifier, 7_002)
@@ -101,11 +101,14 @@ final class CaffeinateControllerTests: XCTestCase {
             processes.append(process)
             return process
         }
+        controller.stateChangeHandler = {
+            _ = try? controller.start()
+        }
 
         XCTAssertTrue(try controller.start())
         processes[0].isRunning = false
 
-        XCTAssertTrue(try controller.start())
+        XCTAssertFalse(try controller.start())
         XCTAssertEqual(processes.count, 2)
         XCTAssertEqual(processes[0].waitCount, 1)
         XCTAssertEqual(controller.processIdentifier, 7_002)
@@ -167,6 +170,21 @@ final class CaffeinateControllerTests: XCTestCase {
         )
         XCTAssertTrue(controller.stop())
         process.finishTermination()
+    }
+
+    func testStartObservingAnExitedChildReportsUnexpectedTermination() throws {
+        let process = FakeWakeProcess()
+        let controller = CaffeinateController { _, _ in process }
+        var unexpectedTerminationCount = 0
+        controller.unexpectedTerminationHandler = {
+            unexpectedTerminationCount += 1
+        }
+
+        XCTAssertTrue(try controller.start())
+        process.isRunning = false
+        XCTAssertFalse(try controller.start())
+        XCTAssertEqual(unexpectedTerminationCount, 1)
+        XCTAssertFalse(controller.isHolding)
     }
 
     func testLaunchFailureDoesNotClaimAHoldAndCanBeRetried() throws {
