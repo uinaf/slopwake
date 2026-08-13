@@ -35,7 +35,7 @@ mkdir -p "${tap_root}/Casks"
   echo '    strategy :github_latest'
   echo '  end'
   echo
-  echo '  depends_on macos: ">= :tahoe"'
+  echo '  depends_on macos: :tahoe'
   echo
   echo '  app "slopwake.app"'
   echo

@@ -32,14 +32,9 @@ kill -0 "${agent_pid}"
   echo "error: smoke agent did not expose the codex process name" >&2
   exit 1
 }
-open -n "${app}"
-
-for attempt in {1..15}; do
-  app_pid="$(pgrep -n -x slopwake || true)"
-  [[ -n "${app_pid}" ]] && break
-  sleep 1
-done
-[[ -n "${app_pid}" ]] || {
+"${app}/Contents/MacOS/slopwake" &
+app_pid=$!
+kill -0 "${app_pid}" || {
   echo "error: installed app did not launch" >&2
   exit 1
 }
