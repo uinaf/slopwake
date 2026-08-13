@@ -1,11 +1,12 @@
+![slopwake — keep your slopshop awake.](docs/assets/readme-banner.png)
+
 # slopwake
 
-Keep your Mac awake while supported coding agents work, without an unbounded
-wake lock.
+Keep your slopshop awake.
 
 `slopwake` is a native macOS 26+ menu-bar app. It combines automatic agent
-activity with bounded manual holds and owns a single `/usr/bin/caffeinate`
-child for the resulting demand.
+activity with bounded manual holds, without leaving an unbounded wake lock. One
+owned `/usr/bin/caffeinate` child serves the resulting demand.
 
 ## Install
 
