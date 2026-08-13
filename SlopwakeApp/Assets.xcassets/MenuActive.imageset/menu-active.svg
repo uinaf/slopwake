@@ -1,11 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-  <defs>
-    <mask id="awake-eyes">
-      <rect width="20" height="20" fill="white"/>
-      <rect x="7" y="7.5" width="2" height="3.5" rx="1" fill="black"/>
-      <rect x="11" y="7.5" width="2" height="3.5" rx="1" fill="black"/>
-    </mask>
-  </defs>
-  <rect x="2.75" y="4.25" width="14.5" height="10.5" rx="3" fill="currentColor" mask="url(#awake-eyes)"/>
-  <path d="M7 16.75h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="2.75" y="3.75" width="14.5" height="11" rx="1.75" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M5.25 9.25Q10 5.75 14.75 9.25Q10 12.75 5.25 9.25Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+  <circle cx="10" cy="9.25" r="1.35" fill="currentColor"/>
+  <path d="M8.25 14.75v2M11.75 14.75v2M6.75 16.75h6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 </svg>
