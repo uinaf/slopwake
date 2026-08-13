@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Existing release version to recover through Homebrew publication
+        required: true
+        type: string
 
 permissions: {}
 
@@ -31,7 +37,7 @@ jobs:
 
   release:
     needs: [verify]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')) || github.event_name == 'workflow_dispatch' }}
     runs-on: macos-26
     timeout-minutes: 120
     environment:
@@ -142,9 +148,10 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
           NEW_RELEASE_VERSION: ${{ steps.release.outputs.new_release_version }}
+          REQUESTED_RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
           set -euo pipefail
-          version="${NEW_RELEASE_VERSION:-}"
+          version="${REQUESTED_RELEASE_VERSION:-${NEW_RELEASE_VERSION:-}}"
           if [[ -z "${version}" ]]; then
             tags="$(
               git tag --points-at HEAD |
@@ -336,7 +343,7 @@ jobs:
           NEW_CASK: ${{ steps.cask.outputs.new_cask }}
         run: |
           set -euo pipefail
-          brew tap uinaf/tap "${GITHUB_WORKSPACE}/homebrew-tap"
+          brew tap --custom-remote uinaf/tap "${GITHUB_WORKSPACE}/homebrew-tap"
           if [[ "${NEW_CASK}" == "true" ]]; then
             brew audit --online --new --cask uinaf/tap/slopwake
           else
