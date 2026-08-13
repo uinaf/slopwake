@@ -31,13 +31,24 @@ fail() {
 
 cleanup() {
   result=$?
-  trap - EXIT HUP INT TERM
+  trap - EXIT
+  trap '' HUP INT TERM
   if [[ -n "$backup_app" && -e "$backup_app" && ! -e "$target_app" ]]; then
-    mv "$backup_app" "$target_app" ||
+    if ! mv "$backup_app" "$target_app"; then
       printf 'slopwake installer: could not restore %s\n' "$target_app" >&2
+      printf 'slopwake installer: previous app preserved at %s\n' "$backup_app" >&2
+      if ((result == 0)); then
+        result=1
+      fi
+    fi
   fi
   if [[ -n "$install_staging_directory" && -d "$install_staging_directory" ]]; then
-    rm -rf "$install_staging_directory"
+    if [[ -e "$backup_app" && ! -e "$target_app" ]]; then
+      printf 'slopwake installer: recovery files preserved at %s\n' \
+        "$install_staging_directory" >&2
+    else
+      rm -rf "$install_staging_directory"
+    fi
   fi
   if [[ -n "$temporary_directory" && -d "$temporary_directory" ]]; then
     rm -rf "$temporary_directory"
