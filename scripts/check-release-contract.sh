@@ -22,6 +22,7 @@ grep -Fq 'workflow_dispatch:' .github/workflows/ci.yml
 grep -Fq 'cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"' .github/workflows/ci.yml
 grep -Fq 'brew audit --online --strict --cask uinaf/tap/slopwake' .github/workflows/ci.yml
 grep -Fq 'app-key: ${{ secrets.UINAF_RELEASE_APP_PRIVATE_KEY }}' .github/workflows/ci.yml
+grep -Fq 'HOMEBREW_NO_AUTO_UPDATE: 1' .github/workflows/ci.yml
 
 version="$(sed -n '1p' VERSION)"
 [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {

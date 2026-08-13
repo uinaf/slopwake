@@ -373,13 +373,13 @@ jobs:
         if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ steps.tap-bot.outputs.token }}
+          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
           set -euo pipefail
           if brew tap | grep -qx uinaf/tap; then
             brew untap uinaf/tap
           fi
           brew tap uinaf/tap
-          brew update
           brew install --cask uinaf/tap/slopwake
           scripts/smoke-installed-app.sh /Applications/slopwake.app
           brew uninstall --cask --zap slopwake
