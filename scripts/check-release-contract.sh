@@ -19,7 +19,7 @@ ruby -ryaml -e '
 grep -Fq 'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"' .github/workflows/ci.yml
 grep -Fq 'gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"' .github/workflows/ci.yml
 grep -Fq 'workflow_dispatch:' .github/workflows/ci.yml
-grep -Fq 'brew tap --custom-remote uinaf/tap "${GITHUB_WORKSPACE}/homebrew-tap"' .github/workflows/ci.yml
+grep -Fq 'cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"' .github/workflows/ci.yml
 
 version="$(sed -n '1p' VERSION)"
 [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {

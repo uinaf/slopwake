@@ -343,7 +343,10 @@ jobs:
           NEW_CASK: ${{ steps.cask.outputs.new_cask }}
         run: |
           set -euo pipefail
-          brew tap --custom-remote uinaf/tap "${GITHUB_WORKSPACE}/homebrew-tap"
+          brew tap uinaf/tap
+          tap_root="$(brew --repository uinaf/tap)"
+          mkdir -p "${tap_root}/Casks"
+          cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"
           if [[ "${NEW_CASK}" == "true" ]]; then
             brew audit --online --new --cask uinaf/tap/slopwake
           else
