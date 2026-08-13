@@ -21,6 +21,7 @@ grep -Fq 'gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"' .github/wo
 grep -Fq 'workflow_dispatch:' .github/workflows/ci.yml
 grep -Fq 'cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"' .github/workflows/ci.yml
 grep -Fq 'brew audit --online --strict --cask uinaf/tap/slopwake' .github/workflows/ci.yml
+grep -Fq 'app-key: ${{ secrets.UINAF_RELEASE_APP_PRIVATE_KEY }}' .github/workflows/ci.yml
 
 version="$(sed -n '1p' VERSION)"
 [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {

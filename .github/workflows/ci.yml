@@ -354,7 +354,8 @@ jobs:
           repository: uinaf/homebrew-tap
           branch: main
           commit-message: "chore(slopwake): update to v${{ steps.target.outputs.version }}"
-          github-token: ${{ steps.tap-bot.outputs.token }}
+          app-id: ${{ vars.UINAF_RELEASE_APP_CLIENT_ID }}
+          app-key: ${{ secrets.UINAF_RELEASE_APP_PRIVATE_KEY }}
 
       - name: Verify signed tap commit
         if: ${{ steps.gate.outputs.active == 'true' && steps.cask.outputs.changed == 'true' }}
