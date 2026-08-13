@@ -164,14 +164,21 @@ bundle_identifier="$(plutil -extract CFBundleIdentifier raw -o - "$info_plist" 2
 bundle_version="$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist" 2>/dev/null || true)"
 [[ "$bundle_identifier" == "dev.uinaf.slopwake" ]] || fail "unexpected app bundle identifier"
 [[ "$bundle_version" == "$version" ]] || fail "app version does not match the release"
-codesign --verify --deep --strict --verbose=2 "$source_app"
-spctl --assess --type execute --verbose=2 "$source_app"
+codesign --verify --deep --strict --verbose=2 "$source_app" ||
+  fail "downloaded app failed signature verification"
+spctl --assess --type execute --verbose=2 "$source_app" ||
+  fail "downloaded app was rejected by Gatekeeper"
 
 mkdir -p "$install_directory"
 install_staging_directory="$(mktemp -d "${install_directory%/}/.slopwake-install.XXXXXX")"
 staged_app="${install_staging_directory}/slopwake.app"
 backup_app="${install_staging_directory}/previous-slopwake.app"
 ditto "$source_app" "$staged_app"
+chmod -R u+rwX,go+rX,go-w "$staged_app"
+codesign --verify --deep --strict --verbose=2 "$staged_app" ||
+  fail "staged app failed signature verification after permission normalization"
+spctl --assess --type execute --verbose=2 "$staged_app" ||
+  fail "staged app was rejected by Gatekeeper after permission normalization"
 if [[ -e "$target_app" ]]; then
   mv "$target_app" "$backup_app"
 fi

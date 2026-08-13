@@ -173,9 +173,19 @@ final class WakeMenuModel {
             }
         } catch {
             loginItemState = loginItemController.state
+            if enabled, loginItemState == .requiresApproval {
+                loginItemActionFailed = false
+                preferenceStore.setStartsAtLogin(true)
+                loginItemMessage = "start at login needs approval in System Settings"
+                return
+            }
             loginItemActionFailed = true
             loginItemMessage = "could not change start at login"
         }
+    }
+
+    func openLoginItemSettings() {
+        loginItemController.openSystemSettings()
     }
 
     func quit() {

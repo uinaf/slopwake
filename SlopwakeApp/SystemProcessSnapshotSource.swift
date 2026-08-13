@@ -7,7 +7,24 @@ struct SystemProcessSnapshot: Sendable {
 }
 
 struct SystemProcessSnapshotSource: Sendable {
+    private let timebaseNumerator: UInt64
+    private let timebaseDenominator: UInt64
+
+    init() {
+        var timebase = mach_timebase_info_data_t()
+        if mach_timebase_info(&timebase) == KERN_SUCCESS {
+            timebaseNumerator = UInt64(timebase.numer)
+            timebaseDenominator = UInt64(timebase.denom)
+        } else {
+            timebaseNumerator = 0
+            timebaseDenominator = 0
+        }
+    }
+
     func snapshot(bundleIdentifiers: [pid_t: String]) -> SystemProcessSnapshot? {
+        guard timebaseNumerator > 0, timebaseDenominator > 0 else {
+            return nil
+        }
         let processCount = proc_listallpids(nil, 0)
         guard processCount > 0 else {
             return nil
@@ -106,8 +123,15 @@ struct SystemProcessSnapshotSource: Sendable {
         guard !fullStartTime.overflow else {
             return .unavailable
         }
-        let cpuTime = taskInfo.pti_total_user.addingReportingOverflow(taskInfo.pti_total_system)
-        guard !cpuTime.overflow else {
+        let absoluteCPUTime = taskInfo.pti_total_user.addingReportingOverflow(
+            taskInfo.pti_total_system
+        )
+        guard !absoluteCPUTime.overflow,
+              let cpuTimeNanoseconds = Self.nanoseconds(
+                  fromAbsoluteTime: absoluteCPUTime.partialValue,
+                  numerator: timebaseNumerator,
+                  denominator: timebaseDenominator
+              ) else {
             return .unavailable
         }
         let terminalFlags = UInt32(PROC_FLAG_CTTY | PROC_FLAG_CONTROLT)
@@ -124,7 +148,22 @@ struct SystemProcessSnapshotSource: Sendable {
             ),
             bundleIdentifier: bundleIdentifier,
             hasControllingTerminal: bsdInfo.pbi_flags & terminalFlags != 0,
-            cumulativeCPUTimeNanoseconds: cpuTime.partialValue
+            cumulativeCPUTimeNanoseconds: cpuTimeNanoseconds
         ))
+    }
+
+    static func nanoseconds(
+        fromAbsoluteTime absoluteTime: UInt64,
+        numerator: UInt64,
+        denominator: UInt64
+    ) -> UInt64? {
+        guard numerator > 0, denominator > 0 else {
+            return nil
+        }
+        let scaled = absoluteTime.multipliedReportingOverflow(by: numerator)
+        guard !scaled.overflow else {
+            return nil
+        }
+        return scaled.partialValue / denominator
     }
 }
