@@ -16,6 +16,8 @@ ruby -ryaml -e '
   YAML.load_file(".github/workflows/secrets.yml")
   YAML.load_file(".github/dependabot.yml")
 '
+grep -Fq 'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"' .github/workflows/ci.yml
+grep -Fq 'gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"' .github/workflows/ci.yml
 
 version="$(sed -n '1p' VERSION)"
 [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {

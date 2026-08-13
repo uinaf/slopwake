@@ -179,24 +179,28 @@ jobs:
           RELEASE_TAG: ${{ steps.target.outputs.tag }}
         run: |
           set -euo pipefail
-          err="${RUNNER_TEMP}/release-api.err"
-          set +e
-          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" 2>"${err}")"
-          status=$?
-          set -e
-          if [[ "${status}" -ne 0 ]]; then
-            if grep -Eq 'HTTP 404|Not Found' "${err}"; then
-              echo "exists=false" >>"${GITHUB_OUTPUT}"
-              echo "published=false" >>"${GITHUB_OUTPUT}"
-              echo "draft=false" >>"${GITHUB_OUTPUT}"
-              exit 0
-            fi
-            cat "${err}" >&2
-            exit "${status}"
+          releases="$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100")"
+          matches="$(jq -c --arg tag "${RELEASE_TAG}" '[.[][] | select(.tag_name == $tag)]' <<<"${releases}")"
+          count="$(jq 'length' <<<"${matches}")"
+          if [[ "${count}" == "0" ]]; then
+            {
+              echo "exists=false"
+              echo "published=false"
+              echo "draft=false"
+            } >>"${GITHUB_OUTPUT}"
+            exit 0
           fi
-          echo "exists=true" >>"${GITHUB_OUTPUT}"
-          echo "draft=$(jq -r .draft <<<"${release}")" >>"${GITHUB_OUTPUT}"
-          echo "published=$(jq -r '(.draft == false)' <<<"${release}")" >>"${GITHUB_OUTPUT}"
+          [[ "${count}" == "1" ]] || {
+            echo "expected one release for ${RELEASE_TAG}, found ${count}" >&2
+            exit 1
+          }
+          release="$(jq -c '.[0]' <<<"${matches}")"
+          {
+            echo "exists=true"
+            echo "id=$(jq -r .id <<<"${release}")"
+            echo "draft=$(jq -r .draft <<<"${release}")"
+            echo "published=$(jq -r '(.draft == false)' <<<"${release}")"
+          } >>"${GITHUB_OUTPUT}"
 
       - name: Select Xcode 26.6
         if: ${{ steps.gate.outputs.active == 'true' && steps.release-state.outputs.draft == 'true' }}
@@ -236,8 +240,10 @@ jobs:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
           VERSION: ${{ steps.target.outputs.version }}
           RELEASE_TAG: ${{ steps.target.outputs.tag }}
+          RELEASE_ID: ${{ steps.release-state.outputs.id }}
         run: |
           set -euo pipefail
+          [[ "${RELEASE_ID}" =~ ^[1-9][0-9]*$ ]]
           mkdir -p dist
           asset="dist/slopwake-${VERSION}-macos-universal.zip"
           if [[ ! -f "${asset}" ]]; then
@@ -246,7 +252,7 @@ jobs:
               --dir dist
           fi
           expected="sha256:$(shasum -a 256 "${asset}" | awk '{print $1}')"
-          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
+          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}")"
           [[ "$(jq -r .draft <<<"${release}")" == "true" ]]
           [[ "$(jq -r --arg name "$(basename "${asset}")" '.assets[] | select(.name == $name) | .digest' <<<"${release}")" == "${expected}" ]]
           gh release edit "${RELEASE_TAG}" --draft=false --latest
