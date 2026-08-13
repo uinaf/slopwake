@@ -1,8 +1,10 @@
 # Release workflow
 
-Pushes to `main` run verification and release automatically. Conventional
-Commits select the version, Apple accepts the signed artifact before it becomes
-public, and the same immutable ZIP supplies the Homebrew cask.
+Pushes to `main` run verification and release preparation automatically.
+Conventional Commits select the version, Apple accepts the signed artifact
+before it becomes public, and the same immutable ZIP supplies the Homebrew
+cask. A versioned manual dispatch resumes an existing release without running
+semantic-release again.
 
 ## Versioning
 
@@ -38,8 +40,8 @@ receives the same version as `CFBundleShortVersionString`.
    hold, quits it, checks that the hold exited, and uninstalls with preferences
    removed.
 
-The first release proves installation and uninstall. A real Homebrew upgrade
-can only be exercised after a second version exists.
+Every release proves installation and uninstall. A version-to-version Homebrew
+upgrade can be exercised once two public cask versions exist.
 
 ## Release environment
 
@@ -71,7 +73,7 @@ make verify
 Then inject the six Apple variables through an approved secret manager:
 
 ```sh
-make release RELEASE_VERSION=1.0.0
+make release RELEASE_VERSION=1.2.3
 ```
 
 An accepted submission produces:
@@ -89,12 +91,21 @@ Signing, notarization, stapling, Gatekeeper, draft digest validation, Homebrew
 audit, and install smoke are hard failures. Temporary credentials and partial
 local staging directories are removed when the command exits.
 
-If semantic-release creates a draft but publication stops, inspect the draft
-and its asset digest, fix the failing step, and rerun the same release job. Do
-not publish a draft by hand or reuse a tag with different bytes. Immutable
-verification, Homebrew, and install smoke run only after the GitHub Release is
-published. If publication succeeds but the cask update fails, keep the
-immutable release and rerun only the cask generation, audit, and smoke against
-its existing asset.
+If release work stops after semantic-release creates a draft, inspect the draft
+and asset digest, then fix the failing step. Do not publish a draft by hand or
+reuse a tag with different bytes.
+
+Resume the existing version from the repaired `main` branch:
+
+```sh
+release_version="$(sed -n '1p' VERSION)"
+gh workflow run ci.yml --ref main -f "release_version=${release_version}"
+```
+
+The manual path skips semantic-release. It discovers draft releases through
+the authenticated releases API, signs and publishes an existing draft when
+needed, verifies an existing immutable release, and reconciles its Homebrew
+cask. This is also the supported recovery when GitHub publication succeeded
+but cask audit, tap publication, or install smoke failed.
 
 [immutable]: https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases

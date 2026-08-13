@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: verify-${{ github.workflow }}-${{ github.ref }}
+      group: verify-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - name: Check out
@@ -122,7 +122,7 @@ jobs:
           echo "active=false" >>"${GITHUB_OUTPUT}"
 
       - name: Prepare draft release
-        if: ${{ steps.gate.outputs.active == 'true' && steps.preflight.outputs.recovery != 'true' }}
+        if: ${{ steps.gate.outputs.active == 'true' && steps.preflight.outputs.recovery != 'true' && github.event_name != 'workflow_dispatch' }}
         id: release
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         with:
@@ -139,7 +139,7 @@ jobs:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
 
       - name: Restore credential-free origin
-        if: ${{ always() && steps.gate.outputs.active == 'true' && steps.preflight.outputs.recovery != 'true' }}
+        if: ${{ always() && steps.gate.outputs.active == 'true' && steps.preflight.outputs.recovery != 'true' && github.event_name != 'workflow_dispatch' }}
         run: git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
 
       - name: Resolve release target
@@ -174,9 +174,11 @@ jobs:
             exit 0
           fi
           [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          echo "present=true" >>"${GITHUB_OUTPUT}"
-          echo "version=${version}" >>"${GITHUB_OUTPUT}"
-          echo "tag=v${version}" >>"${GITHUB_OUTPUT}"
+          {
+            echo "present=true"
+            echo "version=${version}"
+            echo "tag=v${version}"
+          } >>"${GITHUB_OUTPUT}"
 
       - name: Inspect GitHub Release state
         if: ${{ steps.gate.outputs.active == 'true' && steps.target.outputs.present == 'true' }}

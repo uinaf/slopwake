@@ -54,11 +54,6 @@ support an open lid. Normal powered clamshell use with an external display
 continues to work, but `slopwake` does not bypass macOS bare closed-lid sleep or
 corporate policy.
 
-## Build from source
-
-Development requires macOS 26+ and Xcode 26+. See [Contributing](CONTRIBUTING.md)
-for setup and verification commands.
-
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) explains detection, policy, persistence,
@@ -69,7 +64,8 @@ for setup and verification commands.
 
 ## Contributing
 
-See [Contributing](CONTRIBUTING.md) for setup and verification.
+Development requires macOS 26+ and Xcode 26+. See
+[Contributing](CONTRIBUTING.md) for setup and verification commands.
 
 ## License
 
