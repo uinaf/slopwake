@@ -62,6 +62,7 @@ corporate policy.
 - [Branding](docs/BRANDING.md) records the canonical product-art source.
 - [Release workflow](docs/RELEASING.md) covers signing, notarization, and release
   artifacts.
+- [Security](SECURITY.md) explains private vulnerability reporting.
 
 ## Contributing
 
