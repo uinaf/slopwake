@@ -30,8 +30,9 @@ flowchart LR
 Codex, Claude, and Cursor desktop and CLI surfaces are evaluated independently.
 Codex Desktop sessions connected to a remote workspace are identified from the
 orphaned launch shell, app-server tree, and code-mode worker, without reading
-process arguments. That remote tree aggregates CPU progress from its code-mode
-worker subtrees. Headless CLI processes remain active for their lifetime.
+process arguments. That remote tree aggregates CPU progress from its app-server
+root and code-mode worker subtrees. Headless CLI processes remain active for
+their lifetime.
 Interactive CLI and bundle-identified desktop processes use their own cumulative
 CPU progress; recent activity expires after 30 quiet minutes. Claude Desktop may
 also use the lifetime of its local agent descendant.

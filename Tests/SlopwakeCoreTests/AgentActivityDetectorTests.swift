@@ -129,6 +129,37 @@ final class AgentActivityDetectorTests: XCTestCase {
         )
     }
 
+    func testRemoteCodexDesktopUsesAppServerRootActivity() {
+        var detector = AgentActivityDetector()
+        let launchShell = sample(pid: 31, parent: 1, name: "sh")
+        let worker = sample(
+            pid: 33,
+            parent: 32,
+            name: "codex-code-mode-host",
+            cpu: 200
+        )
+        _ = detector.update(
+            processes: [
+                launchShell,
+                sample(pid: 32, parent: 31, name: "codex", cpu: 100),
+                worker,
+            ],
+            at: time(0)
+        )
+
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    launchShell,
+                    sample(pid: 32, parent: 31, name: "codex", cpu: 50_000_100),
+                    worker,
+                ],
+                at: time(1)
+            ),
+            state(.codexDesktop, .activeProcess)
+        )
+    }
+
     func testRemoteCodexDesktopWorkerReplacementResetsTheActivityBaseline() {
         var detector = AgentActivityDetector()
         let launchShell = sample(pid: 31, parent: 1, name: "sh")
