@@ -28,10 +28,13 @@ flowchart LR
 ## Detection
 
 Codex, Claude, and Cursor desktop and CLI surfaces are evaluated independently.
-Headless CLI processes remain active for their lifetime. Interactive CLI and
-desktop processes require cumulative CPU progress; recent activity expires
-after 30 quiet minutes. Claude Desktop may also use the lifetime of its local
-agent descendant.
+Codex Desktop sessions connected to a remote workspace are identified from the
+orphaned launch shell, app-server tree, and code-mode worker, without reading
+process arguments. That remote tree aggregates CPU progress from its code-mode
+worker subtrees. Headless CLI processes remain active for their lifetime.
+Interactive CLI and bundle-identified desktop processes use their own cumulative
+CPU progress; recent activity expires after 30 quiet minutes. Claude Desktop may
+also use the lifetime of its local agent descendant.
 
 Process identity includes the PID and start time so PID reuse cannot inherit an
 old session. Snapshot failures retain evidence only for currently enabled

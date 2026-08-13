@@ -16,6 +16,7 @@ protocol LoginItemControlling: AnyObject {
     var state: LoginItemState { get }
 
     func setEnabled(_ enabled: Bool) throws
+    func openSystemSettings()
 }
 
 @MainActor
@@ -56,5 +57,9 @@ final class LoginItemController: LoginItemControlling {
                 throw LoginItemError.unavailable
             }
         }
+    }
+
+    func openSystemSettings() {
+        SMAppService.openSystemSettingsLoginItems()
     }
 }

@@ -17,7 +17,6 @@ struct SlopwakeApp: App {
     var body: some Scene {
         MenuBarExtra {
             WakeMenu(model: model)
-                .font(.system(.body, design: .monospaced))
         } label: {
             Image(model.isHolding ? "MenuActive" : "MenuIdle")
                 .renderingMode(.template)
@@ -25,6 +24,18 @@ struct SlopwakeApp: App {
         }
         .menuBarExtraStyle(.menu)
     }
+}
+
+struct DetectorMenuGroup: Hashable {
+    let title: String
+    let desktop: AgentSurface
+    let cli: AgentSurface
+
+    static let all = [
+        DetectorMenuGroup(title: "Codex", desktop: .codexDesktop, cli: .codexCLI),
+        DetectorMenuGroup(title: "Claude", desktop: .claudeDesktop, cli: .claudeCLI),
+        DetectorMenuGroup(title: "Cursor", desktop: .cursorDesktop, cli: .cursorCLI),
+    ]
 }
 
 private struct WakeMenu: View {
@@ -94,15 +105,36 @@ private struct WakeMenu: View {
 
     private var detectorMenu: some View {
         Menu("detectors") {
-            ForEach(AgentSurface.allCases, id: \.self) { surface in
-                Toggle(
-                    surface.displayName.lowercased(),
-                    isOn: Binding(
-                        get: { model.preferences.enabledSurfaces.contains(surface) },
-                        set: { model.setSurface(surface, enabled: $0) }
-                    )
-                )
+            ForEach(DetectorMenuGroup.all, id: \.self) { group in
+                detectorSection(group.title, desktop: group.desktop, cli: group.cli)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func detectorSection(
+        _ title: String,
+        desktop: AgentSurface,
+        cli: AgentSurface
+    ) -> some View {
+        Section(title) {
+            detectorToggle("desktop", systemImage: "macwindow", surface: desktop)
+            detectorToggle("command line", systemImage: "terminal", surface: cli)
+        }
+    }
+
+    private func detectorToggle(
+        _ title: String,
+        systemImage: String,
+        surface: AgentSurface
+    ) -> some View {
+        Toggle(
+            isOn: Binding(
+                get: { model.preferences.enabledSurfaces.contains(surface) },
+                set: { model.setSurface(surface, enabled: $0) }
+            )
+        ) {
+            Label(title, systemImage: systemImage)
         }
     }
 
@@ -141,6 +173,11 @@ private struct WakeMenu: View {
                     }
                 )
             )
+
+            if model.loginItemState == .requiresApproval {
+                Divider()
+                Button("open Login Items settings", action: model.openLoginItemSettings)
+            }
         }
     }
 

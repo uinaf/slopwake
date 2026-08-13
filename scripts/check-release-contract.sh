@@ -15,6 +15,17 @@ grep -Fq -- '--install-dir DIRECTORY' <<<"${install_help}"
 grep -Fq -- '--force' <<<"${install_help}"
 grep -Fq 'https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh' README.md
 grep -Fq '| bash -s -- --help' README.md
+awk '
+  index($0, "chmod -R u+rwX,go+rX,go-w \"$staged_app\"") { normalized = NR }
+  index($0, "codesign --verify --deep --strict --verbose=2 \"$staged_app\"") { signed = NR }
+  index($0, "spctl --assess --type execute --verbose=2 \"$staged_app\"") { assessed = NR }
+  index($0, "mv \"$staged_app\" \"$target_app\"") { replaced = NR }
+  END {
+    if (normalized > 0 && signed > normalized && assessed > signed && replaced > assessed) exit 0
+    print "installer must normalize, revalidate, and replace the staged app in order" > "/dev/stderr"
+    exit 1
+  }
+' scripts/install.sh
 ruby -rjson -e '
   config = JSON.parse(File.read(".releaserc.json"))
   plugins = config.fetch("plugins").flatten

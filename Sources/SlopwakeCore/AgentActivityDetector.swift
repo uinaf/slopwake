@@ -118,9 +118,16 @@ public struct AgentActivityDetector: Sendable {
         var lastActivity: MonotonicTime?
     }
 
+    private struct RemoteCodexActivityState: Sendable {
+        var cpuTimeByProcess: [AgentProcessIdentity: UInt64]
+        var cumulativeCPUTimeNanoseconds: UInt64
+    }
+
     private let quietPeriodSeconds: UInt64
     private let holdCeilingSeconds: UInt64
     private var sessions: [SessionKey: SessionState] = [:]
+    private var remoteCodexDesktopRoots: Set<AgentProcessIdentity> = []
+    private var remoteCodexActivityStates: [AgentProcessIdentity: RemoteCodexActivityState] = [:]
     private var holdStartedAt: MonotonicTime?
     private var ceilingBlocked = false
 
@@ -143,7 +150,11 @@ public struct AgentActivityDetector: Sendable {
             processesByIdentifier[process.identity.processIdentifier] = process
         }
         let normalizedProcesses = Array(processesByIdentifier.values)
-        let desktopRoots = desktopRootProcesses(in: normalizedProcesses)
+        let desktopRoots = desktopRootProcesses(
+            in: normalizedProcesses,
+            processesByIdentifier: processesByIdentifier,
+            unavailableProcessIdentifiers: unavailableProcessIdentifiers
+        )
         var currentSessionKeys: Set<SessionKey> = []
         var evidenceBySurface: [AgentSurface: AgentActivityEvidence] = [:]
 
@@ -162,9 +173,18 @@ public struct AgentActivityDetector: Sendable {
                             processesByIdentifier: processesByIdentifier
                         )
                 }
+                let activitySample = if surface == .codexDesktop && root.bundleIdentifier == nil {
+                    aggregateDesktopActivity(
+                        for: root,
+                        processes: normalizedProcesses,
+                        processesByIdentifier: processesByIdentifier
+                    )
+                } else {
+                    root
+                }
                 if let evidence = activityEvidence(
                     for: sessionKey,
-                    sample: root,
+                    sample: activitySample,
                     at: now,
                     forceActive: hasLocalAgent
                 ) {
@@ -316,18 +336,116 @@ public struct AgentActivityDetector: Sendable {
         return .recentActivity
     }
 
-    private func desktopRootProcesses(
-        in processes: [AgentProcessSample]
+    private mutating func desktopRootProcesses(
+        in processes: [AgentProcessSample],
+        processesByIdentifier: [Int32: AgentProcessSample],
+        unavailableProcessIdentifiers: Set<Int32>
     ) -> [AgentSurface: [AgentProcessSample]] {
+        let currentIdentities = Set(processes.map(\.identity))
+        remoteCodexDesktopRoots = remoteCodexDesktopRoots.filter { identity in
+            currentIdentities.contains(identity) ||
+                unavailableProcessIdentifiers.contains(identity.processIdentifier)
+        }
         var roots: [AgentSurface: [AgentProcessSample]] = [:]
         for process in processes {
-            guard let bundleIdentifier = process.bundleIdentifier?.lowercased(),
-                  let surface = Self.desktopBundleIdentifiers[bundleIdentifier] else {
+            if let bundleIdentifier = process.bundleIdentifier?.lowercased(),
+               let surface = Self.desktopBundleIdentifiers[bundleIdentifier] {
+                roots[surface, default: []].append(process)
                 continue
             }
-            roots[surface, default: []].append(process)
+            if remoteCodexDesktopRoots.contains(process.identity) || isRemoteCodexDesktopRoot(
+                process,
+                processes: processes,
+                processesByIdentifier: processesByIdentifier
+            ) {
+                remoteCodexDesktopRoots.insert(process.identity)
+                roots[.codexDesktop, default: []].append(process)
+            }
+        }
+        remoteCodexActivityStates = remoteCodexActivityStates.filter {
+            remoteCodexDesktopRoots.contains($0.key)
         }
         return roots
+    }
+
+    private func isRemoteCodexDesktopRoot(
+        _ process: AgentProcessSample,
+        processes: [AgentProcessSample],
+        processesByIdentifier: [Int32: AgentProcessSample]
+    ) -> Bool {
+        guard process.executableName.lowercased() == "codex",
+              !process.hasControllingTerminal,
+              let parentProcessIdentifier = process.parentProcessIdentifier,
+              let launchShell = processesByIdentifier[parentProcessIdentifier],
+              launchShell.executableName.lowercased() == "sh",
+              launchShell.parentProcessIdentifier == 1 else {
+            return false
+        }
+        return processes.contains { candidate in
+            Self.codexDesktopWorkerNames.contains(candidate.executableName.lowercased()) &&
+                isDescendant(
+                    candidate,
+                    of: process.identity.processIdentifier,
+                    processesByIdentifier: processesByIdentifier
+                )
+        }
+    }
+
+    private mutating func aggregateDesktopActivity(
+        for root: AgentProcessSample,
+        processes: [AgentProcessSample],
+        processesByIdentifier: [Int32: AgentProcessSample]
+    ) -> AgentProcessSample {
+        let workers = processes.filter { process in
+            Self.codexDesktopWorkerNames.contains(process.executableName.lowercased()) &&
+                isDescendant(
+                    process,
+                    of: root.identity.processIdentifier,
+                    processesByIdentifier: processesByIdentifier
+                )
+        }
+        let activityProcesses = processes.filter { process in
+            let isRoot = process.identity == root.identity
+            let belongsToWorker = workers.contains { worker in
+                process.identity == worker.identity || isDescendant(
+                    process,
+                    of: worker.identity.processIdentifier,
+                    processesByIdentifier: processesByIdentifier
+                )
+            }
+            return isRoot || belongsToWorker
+        }
+        var state = remoteCodexActivityStates[root.identity] ?? RemoteCodexActivityState(
+            cpuTimeByProcess: [:],
+            cumulativeCPUTimeNanoseconds: 0
+        )
+        let isInitialSample = state.cpuTimeByProcess.isEmpty
+        var observedDelta: UInt64 = 0
+        for process in activityProcesses {
+            let processCPUTime = process.cumulativeCPUTimeNanoseconds
+            let processDelta: UInt64
+            if let previousCPUTime = state.cpuTimeByProcess[process.identity] {
+                processDelta = processCPUTime >= previousCPUTime
+                    ? processCPUTime - previousCPUTime
+                    : 0
+            } else {
+                processDelta = isInitialSample ? 0 : processCPUTime
+            }
+            let sum = observedDelta.addingReportingOverflow(processDelta)
+            observedDelta = sum.overflow ? .max : sum.partialValue
+            state.cpuTimeByProcess[process.identity] = processCPUTime
+        }
+        let cumulativeSum = state.cumulativeCPUTimeNanoseconds.addingReportingOverflow(observedDelta)
+        state.cumulativeCPUTimeNanoseconds = cumulativeSum.overflow ? .max : cumulativeSum.partialValue
+        remoteCodexActivityStates[root.identity] = state
+        return AgentProcessSample(
+            identity: root.identity,
+            parentProcessIdentifier: root.parentProcessIdentifier,
+            executableName: root.executableName,
+            bundleIdentifier: root.bundleIdentifier,
+            hasControllingTerminal: root.hasControllingTerminal,
+            cumulativeCPUTimeNanoseconds: state.cumulativeCPUTimeNanoseconds
+        )
     }
 
     private func cliSurface(for executableName: String) -> AgentSurface? {
@@ -401,5 +519,9 @@ public struct AgentActivityDetector: Sendable {
         "claude",
         "claude-agent",
         "claude-code",
+    ]
+
+    private static let codexDesktopWorkerNames: Set<String> = [
+        "codex-code-mode-host",
     ]
 }

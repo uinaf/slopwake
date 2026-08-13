@@ -4,6 +4,13 @@ import XCTest
 
 @MainActor
 final class WakeMenuModelTests: XCTestCase {
+    func testDetectorMenuGroupsCoverEverySurfaceExactlyOnce() {
+        let groupedSurfaces = DetectorMenuGroup.all.flatMap { [$0.desktop, $0.cli] }
+
+        XCTAssertEqual(Set(groupedSurfaces), Set(AgentSurface.allCases))
+        XCTAssertEqual(groupedSurfaces.count, Set(groupedSurfaces).count)
+    }
+
     func testManualActionUpdatesHoldingStatusAndDisplayPreference() {
         withModel { model, controller, _, _, _ in
             model.startManualHold(.thirtyMinutes)
@@ -139,6 +146,30 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testDeniedLoginItemRegistrationReportsRequiredApproval() {
+        withModel { model, _, _, _, loginItem in
+            loginItem.stateOnError = .requiresApproval
+            loginItem.setError = TestError.unavailable
+
+            model.setStartsAtLogin(true)
+
+            XCTAssertTrue(model.startsAtLogin)
+            XCTAssertTrue(model.preferences.startsAtLogin)
+            XCTAssertEqual(
+                model.loginItemMessage,
+                "start at login needs approval in System Settings"
+            )
+        }
+    }
+
+    func testLoginItemSettingsActionUsesController() {
+        withModel { model, _, _, _, loginItem in
+            model.openLoginItemSettings()
+
+            XCTAssertEqual(loginItem.openSettingsCount, 1)
+        }
+    }
+
     func testBatteryCutoffIsNormalizedAtTheMenuBoundary() {
         withModel { model, _, _, _, _ in
             model.setBatteryCutoffPercentage(1)
@@ -267,6 +298,8 @@ private final class FakeLoginItemController: LoginItemControlling {
     var state: LoginItemState
     var setError: Error?
     var enabledState: LoginItemState = .enabled
+    var stateOnError: LoginItemState?
+    private(set) var openSettingsCount = 0
 
     init(state: LoginItemState) {
         self.state = state
@@ -274,9 +307,16 @@ private final class FakeLoginItemController: LoginItemControlling {
 
     func setEnabled(_ enabled: Bool) throws {
         if let setError {
+            if let stateOnError {
+                state = stateOnError
+            }
             throw setError
         }
         state = enabled ? enabledState : .disabled
+    }
+
+    func openSystemSettings() {
+        openSettingsCount += 1
     }
 }
 

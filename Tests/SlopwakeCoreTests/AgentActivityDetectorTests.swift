@@ -94,6 +94,224 @@ final class AgentActivityDetectorTests: XCTestCase {
         )
     }
 
+    func testRemoteCodexDesktopUsesAppServerTreeActivity() {
+        var detector = AgentActivityDetector()
+        let launchShell = sample(pid: 31, parent: 1, name: "sh")
+        let appServer = sample(pid: 32, parent: 31, name: "codex", cpu: 100)
+        let codeModeHost = sample(
+            pid: 33,
+            parent: 32,
+            name: "codex-code-mode-host",
+            cpu: 200
+        )
+
+        XCTAssertFalse(
+            detector.update(
+                processes: [launchShell, appServer, codeModeHost],
+                at: time(0)
+            ).shouldHold
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    launchShell,
+                    appServer,
+                    sample(
+                        pid: 33,
+                        parent: 32,
+                        name: "codex-code-mode-host",
+                        cpu: 50_000_200
+                    ),
+                ],
+                at: time(1)
+            ),
+            state(.codexDesktop, .activeProcess)
+        )
+    }
+
+    func testRemoteCodexDesktopWorkerReplacementResetsTheActivityBaseline() {
+        var detector = AgentActivityDetector()
+        let launchShell = sample(pid: 31, parent: 1, name: "sh")
+        let appServer = sample(pid: 32, parent: 31, name: "codex", cpu: 100)
+        _ = detector.update(
+            processes: [
+                launchShell,
+                appServer,
+                sample(pid: 33, parent: 32, name: "codex-code-mode-host", cpu: 200),
+            ],
+            at: time(0)
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    launchShell,
+                    appServer,
+                    sample(
+                        pid: 33,
+                        parent: 32,
+                        name: "codex-code-mode-host",
+                        cpu: 50_000_200
+                    ),
+                ],
+                at: time(1)
+            ),
+            state(.codexDesktop, .activeProcess)
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    launchShell,
+                    appServer,
+                ],
+                at: time(2)
+            ),
+            state(.codexDesktop, .recentActivity)
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    launchShell,
+                    appServer,
+                    sample(
+                        pid: 36,
+                        parent: 32,
+                        name: "codex-code-mode-host",
+                        cpu: 50_000_200
+                    ),
+                ],
+                at: time(3)
+            ),
+            state(.codexDesktop, .activeProcess)
+        )
+    }
+
+    func testRemoteCodexDesktopIdentitySurvivesUnavailableSnapshot() {
+        var detector = AgentActivityDetector()
+        let launchShell = sample(pid: 31, parent: 1, name: "sh")
+        let appServer = sample(pid: 32, parent: 31, name: "codex", cpu: 100)
+        _ = detector.update(
+            processes: [
+                launchShell,
+                appServer,
+                sample(pid: 33, parent: 32, name: "codex-code-mode-host", cpu: 200),
+            ],
+            at: time(0)
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    launchShell,
+                    appServer,
+                    sample(
+                        pid: 33,
+                        parent: 32,
+                        name: "codex-code-mode-host",
+                        cpu: 50_000_200
+                    ),
+                ],
+                at: time(1)
+            ),
+            state(.codexDesktop, .activeProcess)
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [launchShell],
+                at: time(2),
+                unavailableProcessIdentifiers: Set([32])
+            ),
+            state(.codexDesktop, .recentActivity)
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [launchShell, appServer],
+                at: time(3)
+            ),
+            state(.codexDesktop, .recentActivity)
+        )
+    }
+
+    func testRemoteCodexDesktopIgnoresUnrelatedAppServerDescendantCPU() {
+        var detector = AgentActivityDetector()
+        let launchShell = sample(pid: 31, parent: 1, name: "sh")
+        let appServer = sample(pid: 32, parent: 31, name: "codex", cpu: 100)
+        let worker = sample(pid: 33, parent: 32, name: "codex-code-mode-host", cpu: 200)
+        _ = detector.update(
+            processes: [
+                launchShell,
+                appServer,
+                worker,
+                sample(pid: 34, parent: 32, name: "unrelated-helper", cpu: 300),
+            ],
+            at: time(0)
+        )
+
+        XCTAssertFalse(
+            detector.update(
+                processes: [
+                    launchShell,
+                    appServer,
+                    worker,
+                    sample(pid: 34, parent: 32, name: "unrelated-helper", cpu: 50_000_300),
+                ],
+                at: time(1)
+            ).shouldHold
+        )
+    }
+
+    func testHeadlessCodexCodeModeTreeRemainsCLIActivity() {
+        var detector = AgentActivityDetector()
+        let scriptShell = sample(pid: 37, parent: 12, name: "sh")
+        let codex = sample(pid: 38, parent: 37, name: "codex", terminal: false)
+        let codeModeHost = sample(
+            pid: 39,
+            parent: 38,
+            name: "codex-code-mode-host"
+        )
+
+        XCTAssertEqual(
+            detector.update(
+                processes: [scriptShell, codex, codeModeHost],
+                at: time(0)
+            ),
+            state(.codexCLI, .activeProcess)
+        )
+    }
+
+    func testTerminalCodexTreeRemainsCLIActivity() {
+        var detector = AgentActivityDetector()
+        let codeModeHost = sample(
+            pid: 35,
+            parent: 34,
+            name: "codex-code-mode-host",
+            cpu: 200
+        )
+
+        XCTAssertFalse(
+            detector.update(
+                processes: [
+                    sample(pid: 34, name: "codex", terminal: true, cpu: 100),
+                    codeModeHost,
+                ],
+                at: time(0)
+            ).shouldHold
+        )
+        XCTAssertEqual(
+            detector.update(
+                processes: [
+                    sample(pid: 34, name: "codex", terminal: true, cpu: 50_000_100),
+                    sample(
+                        pid: 35,
+                        parent: 34,
+                        name: "codex-code-mode-host",
+                        cpu: 50_000_200
+                    ),
+                ],
+                at: time(1)
+            ),
+            state(.codexCLI, .activeProcess)
+        )
+    }
+
     func testCursorDesktopChildIsNotAlsoReportedAsCursorCLI() {
         var detector = AgentActivityDetector()
         let desktop = sample(
@@ -107,6 +325,33 @@ final class AgentActivityDetectorTests: XCTestCase {
         let result = detector.update(processes: [desktop, child], at: time(0))
         XCTAssertFalse(result.shouldHold)
         XCTAssertTrue(result.sources.isEmpty)
+    }
+
+    func testDesktopHelperCPUDoesNotCountAsRootActivity() {
+        var detector = AgentActivityDetector()
+        let desktop = sample(
+            pid: 46,
+            name: "Cursor",
+            bundle: "com.todesktop.230313mzl4w4u92",
+            cpu: 100
+        )
+        _ = detector.update(
+            processes: [
+                desktop,
+                sample(pid: 47, parent: 46, name: "Cursor Helper", cpu: 200),
+            ],
+            at: time(0)
+        )
+
+        XCTAssertFalse(
+            detector.update(
+                processes: [
+                    desktop,
+                    sample(pid: 47, parent: 46, name: "Cursor Helper", cpu: 50_000_200),
+                ],
+                at: time(1)
+            ).shouldHold
+        )
     }
 
     func testIntegratedTerminalCLIRemainsIndependentFromDesktopParent() {
