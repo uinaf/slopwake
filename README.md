@@ -24,8 +24,15 @@ curl -fsSL https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install
 
 The installer verifies the release SHA-256 digest, bundle identity, version,
 code signature, and Gatekeeper acceptance before copying `slopwake.app` to
-`~/Applications`. It never requests administrator access. Run it with `--help`
-for version, destination, and replacement options.
+`~/Applications`. It never requests administrator access. Pass options after
+`bash -s --`, for example:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh | bash -s -- --help
+```
+
+The installer supports `--version`, `--install-dir`, and opt-in replacement
+with `--force`.
 
 Or download the universal ZIP from [GitHub Releases], then move
 `slopwake.app` to `~/Applications` without administrator access, or to

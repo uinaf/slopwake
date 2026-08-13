@@ -6,6 +6,9 @@ repository="uinaf/slopwake"
 install_directory="${SLOPWAKE_INSTALL_DIR:-${HOME}/Applications}"
 requested_version="latest"
 replace_existing=false
+temporary_directory=""
+install_staging_directory=""
+backup_app=""
 
 usage() {
   cat <<'EOF'
@@ -24,6 +27,22 @@ EOF
 fail() {
   printf 'slopwake installer: %s\n' "$*" >&2
   exit 1
+}
+
+cleanup() {
+  result=$?
+  trap - EXIT HUP INT TERM
+  if [[ -n "$backup_app" && -e "$backup_app" && ! -e "$target_app" ]]; then
+    mv "$backup_app" "$target_app" ||
+      printf 'slopwake installer: could not restore %s\n' "$target_app" >&2
+  fi
+  if [[ -n "$install_staging_directory" && -d "$install_staging_directory" ]]; then
+    rm -rf "$install_staging_directory"
+  fi
+  if [[ -n "$temporary_directory" && -d "$temporary_directory" ]]; then
+    rm -rf "$temporary_directory"
+  fi
+  exit "$result"
 }
 
 while (($# > 0)); do
@@ -76,7 +95,8 @@ if [[ -e "$target_app" && "$replace_existing" != true ]]; then
 fi
 
 temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/slopwake-install.XXXXXX")"
-trap 'rm -rf "$temporary_directory"' EXIT
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
 
 metadata_path="${temporary_directory}/release.json"
 if [[ "$requested_version" == "latest" ]]; then
@@ -135,17 +155,13 @@ codesign --verify --deep --strict --verbose=2 "$source_app"
 spctl --assess --type execute --verbose=2 "$source_app"
 
 mkdir -p "$install_directory"
-backup_app="${temporary_directory}/previous-slopwake.app"
+install_staging_directory="$(mktemp -d "${install_directory%/}/.slopwake-install.XXXXXX")"
+staged_app="${install_staging_directory}/slopwake.app"
+backup_app="${install_staging_directory}/previous-slopwake.app"
+ditto "$source_app" "$staged_app"
 if [[ -e "$target_app" ]]; then
   mv "$target_app" "$backup_app"
 fi
-
-if ! ditto "$source_app" "$target_app"; then
-  rm -rf "$target_app"
-  if [[ -e "$backup_app" ]]; then
-    mv "$backup_app" "$target_app"
-  fi
-  fail "could not install ${target_app}"
-fi
+mv "$staged_app" "$target_app"
 
 printf 'installed slopwake %s at %s\n' "$version" "$target_app"

@@ -14,6 +14,7 @@ grep -Fq -- '--version VERSION' <<<"${install_help}"
 grep -Fq -- '--install-dir DIRECTORY' <<<"${install_help}"
 grep -Fq -- '--force' <<<"${install_help}"
 grep -Fq 'https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh' README.md
+grep -Fq '| bash -s -- --help' README.md
 ruby -rjson -e '
   config = JSON.parse(File.read(".releaserc.json"))
   plugins = config.fetch("plugins").flatten
