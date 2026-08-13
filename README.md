@@ -16,6 +16,17 @@ With Homebrew:
 brew install --cask uinaf/tap/slopwake
 ```
 
+Without Homebrew, install the latest signed release for your user:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh | bash
+```
+
+The installer verifies the release SHA-256 digest, bundle identity, version,
+code signature, and Gatekeeper acceptance before copying `slopwake.app` to
+`~/Applications`. It never requests administrator access. Run it with `--help`
+for version, destination, and replacement options.
+
 Or download the universal ZIP from [GitHub Releases], then move
 `slopwake.app` to `~/Applications` without administrator access, or to
 `/Applications` if you have permission. The app is Developer ID signed and

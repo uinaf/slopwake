@@ -5,6 +5,15 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 bash -n scripts/*.sh
+[[ -x scripts/install.sh ]] || {
+  echo "error: scripts/install.sh must be executable" >&2
+  exit 1
+}
+install_help="$(scripts/install.sh --help)"
+grep -Fq -- '--version VERSION' <<<"${install_help}"
+grep -Fq -- '--install-dir DIRECTORY' <<<"${install_help}"
+grep -Fq -- '--force' <<<"${install_help}"
+grep -Fq 'https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh' README.md
 ruby -rjson -e '
   config = JSON.parse(File.read(".releaserc.json"))
   plugins = config.fetch("plugins").flatten
