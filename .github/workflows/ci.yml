@@ -324,12 +324,9 @@ jobs:
           gh release download "${RELEASE_TAG}" \
             --pattern "slopwake-${VERSION}-macos-universal.zip" \
             --dir "${asset_dir}"
-          new_cask=false
-          [[ -f homebrew-tap/Casks/slopwake.rb ]] || new_cask=true
           scripts/update-homebrew-cask.sh "${VERSION}" "${asset}" homebrew-tap
           git -C homebrew-tap add -- Casks/slopwake.rb
           git -C homebrew-tap diff --cached --check
-          echo "new_cask=${new_cask}" >>"${GITHUB_OUTPUT}"
           if git -C homebrew-tap diff --cached --quiet -- Casks/slopwake.rb; then
             echo "changed=false" >>"${GITHUB_OUTPUT}"
           else
@@ -340,18 +337,13 @@ jobs:
         if: ${{ steps.gate.outputs.active == 'true' && steps.cask.outputs.changed == 'true' }}
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ steps.tap-bot.outputs.token }}
-          NEW_CASK: ${{ steps.cask.outputs.new_cask }}
         run: |
           set -euo pipefail
           brew tap uinaf/tap
           tap_root="$(brew --repository uinaf/tap)"
           mkdir -p "${tap_root}/Casks"
           cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"
-          if [[ "${NEW_CASK}" == "true" ]]; then
-            brew audit --online --new --cask uinaf/tap/slopwake
-          else
-            brew audit --online --cask uinaf/tap/slopwake
-          fi
+          brew audit --online --strict --cask uinaf/tap/slopwake
 
       - name: Commit signed Homebrew cask
         if: ${{ steps.gate.outputs.active == 'true' && steps.cask.outputs.changed == 'true' }}
