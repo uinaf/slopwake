@@ -1,4 +1,4 @@
-![slopwake — keep your slopshop awake.](docs/assets/readme-banner.png)
+![slopwake — keep your slopshop awake.](https://uinaf.dev/og/banner/slopwake.png)
 
 # slopwake
 
