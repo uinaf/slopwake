@@ -50,6 +50,7 @@ The menu exposes the current wake state and its active sources.
 - Set a battery cutoff from 5% to 30%, disable the cutoff, or keep the 15%
   default.
 - Opt into Start at Login.
+- Open the native About panel for the app version and GitHub project link.
 
 Automatic holds expire after 30 quiet minutes. A continuous automatic hold is
 limited to eight hours and rearms after its activity becomes idle.

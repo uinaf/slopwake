@@ -68,6 +68,8 @@ private struct WakeMenu: View {
 
         Divider()
 
+        Button("about slopwake", action: SlopwakeAboutPanel.present)
+
         Button("quit slopwake", action: model.quit)
             .keyboardShortcut("q")
             .onAppear(perform: model.refreshExternalState)

@@ -51,6 +51,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: slopwake
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHighResolutionCapable: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 undefined is not a function LLC"
         ONLY_ACTIVE_ARCH: NO
 
   SlopwakeTests:
