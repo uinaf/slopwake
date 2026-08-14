@@ -20,15 +20,29 @@ protocol LoginItemControlling: AnyObject {
 }
 
 @MainActor
+protocol LoginItemServicing: AnyObject {
+    var status: SMAppService.Status { get }
+
+    func register() throws
+    func unregister() throws
+}
+
+extension SMAppService: LoginItemServicing {}
+
+@MainActor
 final class LoginItemController: LoginItemControlling {
-    private let service = SMAppService.mainApp
+    private let service: any LoginItemServicing
+
+    init(service: any LoginItemServicing = SMAppService.mainApp) {
+        self.service = service
+    }
 
     var state: LoginItemState {
         switch service.status {
         case .notRegistered: .disabled
         case .enabled: .enabled
         case .requiresApproval: .requiresApproval
-        case .notFound: .unavailable
+        case .notFound: .disabled
         @unknown default: .unavailable
         }
     }
@@ -36,23 +50,20 @@ final class LoginItemController: LoginItemControlling {
     func setEnabled(_ enabled: Bool) throws {
         if enabled {
             switch service.status {
-            case .notRegistered:
+            case .notRegistered, .notFound:
+                // macOS 26 can report notFound before the first successful main-app registration.
                 try service.register()
             case .enabled, .requiresApproval:
                 break
-            case .notFound:
-                throw LoginItemError.unavailable
             @unknown default:
                 throw LoginItemError.unavailable
             }
         } else {
             switch service.status {
-            case .notRegistered:
+            case .notRegistered, .notFound:
                 break
             case .enabled, .requiresApproval:
                 try service.unregister()
-            case .notFound:
-                throw LoginItemError.unavailable
             @unknown default:
                 throw LoginItemError.unavailable
             }

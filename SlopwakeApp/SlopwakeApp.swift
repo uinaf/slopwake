@@ -176,7 +176,7 @@ private struct WakeMenu: View {
                 )
             )
 
-            if model.loginItemState == .requiresApproval {
+            if model.loginItemMessage != nil {
                 Divider()
                 Button("open Login Items settings", action: model.openLoginItemSettings)
             }

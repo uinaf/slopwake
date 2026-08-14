@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SlopwakeCore
 @testable import slopwake
 import XCTest
@@ -117,6 +118,48 @@ final class WakeMenuModelTests: XCTestCase {
             XCTAssertFalse(model.startsAtLogin)
             XCTAssertFalse(model.preferences.startsAtLogin)
             XCTAssertEqual(model.loginItemMessage, "could not change start at login")
+        }
+    }
+
+    func testNotFoundMainAppCanRegisterAtLogin() throws {
+        let service = FakeLoginItemService(status: .notFound)
+        let controller = LoginItemController(service: service)
+
+        XCTAssertEqual(controller.state, .disabled)
+
+        try controller.setEnabled(true)
+
+        XCTAssertEqual(service.registerCount, 1)
+        XCTAssertEqual(controller.state, .enabled)
+    }
+
+    func testFailedLoginItemEnableClearsAfterExternalStateCatchesUp() {
+        withModel { model, _, _, _, loginItem in
+            loginItem.setError = TestError.unavailable
+            model.setStartsAtLogin(true)
+            XCTAssertEqual(model.loginItemMessage, "could not change start at login")
+
+            loginItem.state = .enabled
+            model.refreshExternalState()
+
+            XCTAssertTrue(model.startsAtLogin)
+            XCTAssertTrue(model.preferences.startsAtLogin)
+            XCTAssertNil(model.loginItemMessage)
+        }
+    }
+
+    func testFailedLoginItemDisableClearsAfterExternalStateCatchesUp() {
+        withModel(loginItemState: .enabled) { model, _, _, _, loginItem in
+            loginItem.setError = TestError.unavailable
+            model.setStartsAtLogin(false)
+            XCTAssertEqual(model.loginItemMessage, "could not change start at login")
+
+            loginItem.state = .disabled
+            model.refreshExternalState()
+
+            XCTAssertFalse(model.startsAtLogin)
+            XCTAssertFalse(model.preferences.startsAtLogin)
+            XCTAssertNil(model.loginItemMessage)
         }
     }
 
@@ -370,6 +413,25 @@ private final class FakeLoginItemController: LoginItemControlling {
 
     func openSystemSettings() {
         openSettingsCount += 1
+    }
+}
+
+@MainActor
+private final class FakeLoginItemService: LoginItemServicing {
+    var status: SMAppService.Status
+    private(set) var registerCount = 0
+
+    init(status: SMAppService.Status) {
+        self.status = status
+    }
+
+    func register() throws {
+        registerCount += 1
+        status = .enabled
+    }
+
+    func unregister() throws {
+        status = .notRegistered
     }
 }
 

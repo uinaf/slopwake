@@ -63,7 +63,7 @@ final class WakeMenuModel {
     @ObservationIgnored
     private var wakeHoldFailed = false
     @ObservationIgnored
-    private var loginItemActionFailed = false
+    private var failedLoginItemIntent: Bool?
 
     init(
         controller: any WakeHolding,
@@ -191,30 +191,10 @@ final class WakeMenuModel {
     func setStartsAtLogin(_ enabled: Bool) {
         do {
             try loginItemController.setEnabled(enabled)
-            loginItemState = loginItemController.state
-            guard startsAtLogin == enabled else {
-                loginItemActionFailed = true
-                loginItemMessage = "could not change start at login"
-                return
-            }
-            loginItemActionFailed = false
-            preferenceStore.setStartsAtLogin(enabled)
-            if loginItemState == .requiresApproval {
-                loginItemMessage = "start at login needs approval in System Settings"
-            } else {
-                loginItemMessage = nil
-            }
         } catch {
-            loginItemState = loginItemController.state
-            if enabled, loginItemState == .requiresApproval {
-                loginItemActionFailed = false
-                preferenceStore.setStartsAtLogin(true)
-                loginItemMessage = "start at login needs approval in System Settings"
-                return
-            }
-            loginItemActionFailed = true
-            loginItemMessage = "could not change start at login"
+            // The Service Management state is authoritative even when the action throws.
         }
+        refreshLoginItemState(afterAttempting: enabled)
     }
 
     func openLoginItemSettings() {
@@ -313,12 +293,20 @@ final class WakeMenuModel {
         }
     }
 
-    private func refreshLoginItemState() {
+    private func refreshLoginItemState(afterAttempting attemptedState: Bool? = nil) {
         loginItemState = loginItemController.state
         if preferenceStore.value.startsAtLogin != startsAtLogin {
             preferenceStore.setStartsAtLogin(startsAtLogin)
         }
-        guard !loginItemActionFailed else {
+
+        if let attemptedState {
+            failedLoginItemIntent = startsAtLogin == attemptedState ? nil : attemptedState
+        } else if let failedLoginItemIntent, startsAtLogin == failedLoginItemIntent {
+            self.failedLoginItemIntent = nil
+        }
+
+        guard failedLoginItemIntent == nil else {
+            loginItemMessage = "could not change start at login"
             return
         }
         switch loginItemState {
