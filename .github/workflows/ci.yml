@@ -188,22 +188,7 @@ jobs:
           RELEASE_TAG: ${{ steps.target.outputs.tag }}
         run: |
           set -euo pipefail
-          release=""
-          release_error_file="$(mktemp)"
-          trap 'rm -f "$release_error_file"' EXIT
-          for attempt in {1..12}; do
-            if release="$(gh release view "${RELEASE_TAG}" --json databaseId,isDraft 2>"$release_error_file")"; then
-              break
-            fi
-            if (( attempt == 12 )); then
-              cat "$release_error_file" >&2
-              echo "release ${RELEASE_TAG} lookup failed after ${attempt} attempts" >&2
-              exit 1
-            fi
-            sleep 5
-          done
-          rm -f "$release_error_file"
-          trap - EXIT
+          release="$(gh release view "${RELEASE_TAG}" --json databaseId,isDraft)"
           {
             echo "id=$(jq -r .databaseId <<<"${release}")"
             echo "draft=$(jq -r .isDraft <<<"${release}")"
