@@ -1,3 +1,4 @@
+import AppKit
 import SlopwakeCore
 @testable import slopwake
 import XCTest
@@ -178,6 +179,54 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testElapsedStatusAndMenuWidthStayFrozenWhileMenuIsTracked() {
+        var time = MonotonicTime(seconds: 0)
+        let automatic = AutomaticWakeState(
+            shouldHold: true,
+            sources: [AutomaticWakeSource(surface: .codexDesktop, evidence: .activeProcess)],
+            isCeilingLimited: false
+        )
+        withModel(automaticState: automatic, currentTime: { time }) { model, _, _, _, _ in
+            XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
+
+            NotificationCenter.default.post(
+                name: NSMenu.didBeginTrackingNotification,
+                object: NSMenu()
+            )
+            time = MonotonicTime(seconds: 600)
+            model.clockDidTick()
+
+            XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
+
+            NotificationCenter.default.post(
+                name: NSMenu.didEndTrackingNotification,
+                object: NSMenu()
+            )
+
+            XCTAssertEqual(model.statusText, "awake · automatic · 10:00 elapsed")
+        }
+    }
+
+    func testManualExpirationStillReleasesHoldWhileMenuPresentationIsFrozen() {
+        var time = MonotonicTime(seconds: 0)
+        withModel(currentTime: { time }) { model, controller, _, _, _ in
+            model.startManualHold(.thirtyMinutes)
+            XCTAssertTrue(model.isHolding)
+
+            model.menuTrackingDidBegin()
+            time = MonotonicTime(seconds: ManualHoldDuration.thirtyMinutes.rawValue)
+            model.clockDidTick()
+
+            XCTAssertFalse(controller.isHolding)
+            XCTAssertTrue(model.isHolding)
+
+            model.menuTrackingDidEnd()
+
+            XCTAssertFalse(model.isHolding)
+            XCTAssertEqual(model.statusText, "idle · sleep allowed")
+        }
+    }
+
     private func withModel(
         automaticState: AutomaticWakeState = AutomaticWakeState(
             shouldHold: false,
@@ -185,6 +234,9 @@ final class WakeMenuModelTests: XCTestCase {
             isCeilingLimited: false
         ),
         loginItemState: LoginItemState = .disabled,
+        currentTime: @escaping @MainActor () -> MonotonicTime = {
+            MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
+        },
         operation: (
             WakeMenuModel,
             FakeWakeController,
@@ -210,7 +262,8 @@ final class WakeMenuModelTests: XCTestCase {
             automaticMonitor: automaticMonitor,
             batteryMonitor: batteryMonitor,
             preferenceStore: WakePreferencesStore(defaults: defaults),
-            loginItemController: loginItemController
+            loginItemController: loginItemController,
+            currentTime: currentTime
         )
         operation(
             model,

@@ -45,9 +45,21 @@ final class WakeMenuModel {
     @ObservationIgnored
     private let loginItemController: any LoginItemControlling
     @ObservationIgnored
+    private let currentTime: @MainActor () -> MonotonicTime
+    @ObservationIgnored
     private var policy = WakePolicy()
     @ObservationIgnored
     private var clockTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var menuTrackingObserver: MenuTrackingObserver?
+    @ObservationIgnored
+    private var menuTrackingDepth = 0
+    @ObservationIgnored
+    private var latestAutomaticState: AutomaticWakeState
+    @ObservationIgnored
+    private var latestPolicyState: WakePolicyState
+    @ObservationIgnored
+    private var latestWakeErrorMessage: String?
     @ObservationIgnored
     private var wakeHoldFailed = false
     @ObservationIgnored
@@ -59,42 +71,63 @@ final class WakeMenuModel {
         batteryMonitor: any BatteryMonitoring,
         preferenceStore: WakePreferencesStore,
         loginItemController: any LoginItemControlling,
-        startsServices: Bool = true
+        startsServices: Bool = true,
+        currentTime: @escaping @MainActor () -> MonotonicTime = {
+            MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
+        }
     ) {
+        let initialPolicyState = WakePolicyState(
+            shouldHold: false,
+            status: .idle,
+            sources: []
+        )
         self.controller = controller
         self.automaticMonitor = automaticMonitor
         self.batteryMonitor = batteryMonitor
         self.preferenceStore = preferenceStore
         self.loginItemController = loginItemController
+        self.currentTime = currentTime
         isHolding = controller.isHolding
         automaticState = automaticMonitor.state
+        latestAutomaticState = automaticMonitor.state
         loginItemState = loginItemController.state
-        policyState = WakePolicyState(
-            shouldHold: false,
-            status: .idle,
-            sources: []
-        )
+        policyState = initialPolicyState
+        latestPolicyState = initialPolicyState
 
         automaticMonitor.enabledSurfaces = preferenceStore.value.enabledSurfaces
         controller.stateChangeHandler = { [weak self] in
             guard let self else {
                 return
             }
-            isHolding = self.controller.isHolding
             reconcileWakeHold()
         }
         controller.unexpectedTerminationHandler = { [weak self] in
-            self?.wakeHoldFailed = true
-            self?.wakeErrorMessage = "wake hold stopped unexpectedly"
+            guard let self else {
+                return
+            }
+            wakeHoldFailed = true
+            latestWakeErrorMessage = "wake hold stopped unexpectedly"
+            publishPresentationState()
         }
         automaticMonitor.stateChangeHandler = { [weak self] state in
-            self?.automaticState = state
-            self?.reconcileWakeHold()
+            guard let self else {
+                return
+            }
+            latestAutomaticState = state
+            reconcileWakeHold()
         }
         batteryMonitor.stateChangeHandler = { [weak self] _ in
             self?.reconcileWakeHold()
         }
         if startsServices {
+            menuTrackingObserver = MenuTrackingObserver(
+                didBeginTracking: { [weak self] in
+                    self?.menuTrackingDidBegin()
+                },
+                didEndTracking: { [weak self] in
+                    self?.menuTrackingDidEnd()
+                }
+            )
             automaticMonitor.start()
             batteryMonitor.start()
             refreshLoginItemState()
@@ -141,7 +174,7 @@ final class WakeMenuModel {
         preferenceStore.setSurface(surface, enabled: enabled)
         let enabledSurfaces = preferenceStore.value.enabledSurfaces
         automaticMonitor.enabledSurfaces = enabledSurfaces
-        automaticState = automaticMonitor.state.restricted(to: enabledSurfaces)
+        latestAutomaticState = automaticMonitor.state.restricted(to: enabledSurfaces)
         reconcileWakeHold()
     }
 
@@ -191,14 +224,31 @@ final class WakeMenuModel {
     func quit() {
         clockTask?.cancel()
         clockTask = nil
+        menuTrackingObserver = nil
         automaticMonitor.stop()
         batteryMonitor.stop()
         controller.stop()
         NSApplication.shared.terminate(nil)
     }
 
+    func menuTrackingDidBegin() {
+        menuTrackingDepth += 1
+    }
+
+    func menuTrackingDidEnd() {
+        guard menuTrackingDepth > 0 else {
+            return
+        }
+        menuTrackingDepth -= 1
+        publishPresentationState()
+    }
+
+    func clockDidTick() {
+        reconcileWakeHold()
+    }
+
     private var now: MonotonicTime {
-        MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
+        currentTime()
     }
 
     private func startClock() {
@@ -208,40 +258,59 @@ final class WakeMenuModel {
                 guard !Task.isCancelled, let self else {
                     return
                 }
-                reconcileWakeHold()
+                clockDidTick()
             }
         }
     }
 
     private func reconcileWakeHold() {
-        policyState = policy.evaluate(
-            automatic: automaticState,
+        latestPolicyState = policy.evaluate(
+            automatic: latestAutomaticState,
             battery: batteryMonitor.state,
             batteryCutoffPercentage: preferenceStore.value.batteryCutoffPercentage,
             at: now
         )
         do {
-            if policyState.shouldHold {
+            if latestPolicyState.shouldHold {
                 guard !wakeHoldFailed else {
-                    isHolding = controller.isHolding
+                    publishPresentationState()
                     return
                 }
                 try controller.start(
                     preventDisplaySleep: preferenceStore.value.preventsDisplaySleep
                 )
                 if !wakeHoldFailed {
-                    wakeErrorMessage = nil
+                    latestWakeErrorMessage = nil
                 }
             } else {
                 controller.stop()
                 wakeHoldFailed = false
-                wakeErrorMessage = nil
+                latestWakeErrorMessage = nil
             }
         } catch {
             wakeHoldFailed = true
-            wakeErrorMessage = "could not start wake hold"
+            latestWakeErrorMessage = "could not start wake hold"
         }
-        isHolding = controller.isHolding
+        publishPresentationState()
+    }
+
+    private func publishPresentationState() {
+        guard menuTrackingDepth == 0 else {
+            return
+        }
+        if automaticState != latestAutomaticState {
+            automaticState = latestAutomaticState
+        }
+        if policyState != latestPolicyState {
+            policyState = latestPolicyState
+        }
+        if wakeErrorMessage != latestWakeErrorMessage {
+            wakeErrorMessage = latestWakeErrorMessage
+        }
+        let latestIsHolding = controller.isHolding
+        if isHolding != latestIsHolding {
+            isHolding = latestIsHolding
+        }
     }
 
     private func refreshLoginItemState() {
