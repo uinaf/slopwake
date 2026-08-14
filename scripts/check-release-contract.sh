@@ -37,7 +37,12 @@ ruby -ryaml -e '
   YAML.load_file(".github/workflows/secrets.yml")
   YAML.load_file(".github/dependabot.yml")
 '
-grep -Fq 'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"' .github/workflows/ci.yml
+grep -Fq 'gh release view "${RELEASE_TAG}" --json databaseId,isDraft' .github/workflows/ci.yml
+grep -Fq 'release ${RELEASE_TAG} did not become visible after ${attempt} attempts' .github/workflows/ci.yml
+if grep -Fq 'echo "draft=false"' .github/workflows/ci.yml; then
+  echo "release discovery must fail closed when an expected draft is not visible" >&2
+  exit 1
+fi
 grep -Fq 'gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"' .github/workflows/ci.yml
 grep -Fq 'workflow_dispatch:' .github/workflows/ci.yml
 grep -Fq 'group: verify-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}' .github/workflows/ci.yml

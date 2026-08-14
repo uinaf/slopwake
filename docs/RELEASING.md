@@ -29,7 +29,9 @@ receives the same version as `CFBundleShortVersionString`.
    equals the analyzed SHA immediately before version writeback.
 3. `scripts/prepare-release.sh` writes `VERSION` and `project.yml` only.
    `uinaf-releaser` commits those files through GitHub's API, then
-   `semantic-release` opens a draft GitHub Release.
+   `semantic-release` opens a draft GitHub Release. The workflow retries the
+   authenticated tag lookup for up to one minute and fails if that expected
+   draft does not become visible.
 4. The workflow then builds, Developer ID signs, notarizes, and uploads the ZIP
    to that draft. It verifies the uploaded SHA-256 digest before publishing.
    Organization policy then makes the release asset and tag [immutable].
@@ -87,9 +89,10 @@ version.
 
 ## Failure and recovery
 
-Signing, notarization, stapling, Gatekeeper, draft digest validation, Homebrew
-audit, and install smoke are hard failures. Temporary credentials and partial
-local staging directories are removed when the command exits.
+Draft discovery, signing, notarization, stapling, Gatekeeper, draft digest
+validation, Homebrew audit, and install smoke are hard failures. Temporary
+credentials and partial local staging directories are removed when the command
+exits.
 
 If release work stops after semantic-release creates a draft, inspect the draft
 and asset digest, then fix the failing step. Do not publish a draft by hand or
