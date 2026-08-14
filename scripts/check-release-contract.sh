@@ -38,7 +38,8 @@ ruby -ryaml -e '
   YAML.load_file(".github/dependabot.yml")
 '
 grep -Fq 'gh release view "${RELEASE_TAG}" --json databaseId,isDraft' .github/workflows/ci.yml
-grep -Fq 'release ${RELEASE_TAG} did not become visible after ${attempt} attempts' .github/workflows/ci.yml
+grep -Fq 'cat "$release_error_file" >&2' .github/workflows/ci.yml
+grep -Fq 'release ${RELEASE_TAG} lookup failed after ${attempt} attempts' .github/workflows/ci.yml
 if grep -Fq 'echo "draft=false"' .github/workflows/ci.yml; then
   echo "release discovery must fail closed when an expected draft is not visible" >&2
   exit 1
