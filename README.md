@@ -5,8 +5,8 @@
 Keep your slopshop awake.
 
 `slopwake` is a native macOS 26+ menu-bar app. It combines automatic agent
-activity with bounded manual holds, without leaving an unbounded wake lock. One
-owned `/usr/bin/caffeinate` child serves the resulting demand.
+activity with bounded manual holds. One owned `/usr/bin/caffeinate` child serves
+the resulting demand.
 
 ## Install
 
@@ -52,8 +52,7 @@ The menu exposes the current wake state and its active sources.
 - Opt into Start at Login.
 - Open the native About panel for the app version and GitHub project link.
 
-Automatic holds expire after 30 quiet minutes. A continuous automatic hold is
-limited to eight hours and rearms after its activity becomes idle.
+Automatic holds expire after 30 quiet minutes.
 
 ## Safety and privacy
 

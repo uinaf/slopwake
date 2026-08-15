@@ -16,7 +16,7 @@ final class AgentActivityDetectorTests: XCTestCase {
         )
         XCTAssertEqual(
             detector.update(processes: [], at: time(10_001)),
-            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+            AutomaticWakeState(shouldHold: false, sources: [])
         )
     }
 
@@ -529,61 +529,53 @@ final class AgentActivityDetectorTests: XCTestCase {
         )
     }
 
-    func testEightHourCeilingRequiresIdleToActiveTransitionToRearm() {
-        var detector = AgentActivityDetector(quietPeriodSeconds: 10, holdCeilingSeconds: 100)
+    func testContinuousActivityRemainsHeldBeyondEightHours() {
+        var detector = AgentActivityDetector()
         let headless = sample(pid: 90, name: "codex", terminal: false)
 
         XCTAssertTrue(detector.update(processes: [headless], at: time(0)).shouldHold)
-        let limited = detector.update(processes: [headless], at: time(100))
-        XCTAssertFalse(limited.shouldHold)
-        XCTAssertTrue(limited.isCeilingLimited)
-        XCTAssertTrue(detector.update(processes: [headless], at: time(101)).isCeilingLimited)
-
-        XCTAssertFalse(detector.update(processes: [], at: time(102)).isCeilingLimited)
         XCTAssertTrue(
             detector.update(
-                processes: [sample(pid: 91, name: "codex", terminal: false)],
-                at: time(103)
+                processes: [headless],
+                at: time(8 * 60 * 60 + 1)
             ).shouldHold
         )
     }
 
-    func testSamplingFailureStillEnforcesCeilingWithoutCreatingIdleTransition() {
-        var detector = AgentActivityDetector(holdCeilingSeconds: 100)
+    func testSamplingFailureRetainsEvidenceWithoutCreatingIdleTransition() {
+        var detector = AgentActivityDetector()
         let headless = sample(pid: 92, name: "codex", terminal: false)
         _ = detector.update(processes: [headless], at: time(0))
 
-        let limited = detector.tickWithoutSnapshot(at: time(100))
-        XCTAssertFalse(limited.shouldHold)
-        XCTAssertTrue(limited.isCeilingLimited)
-        XCTAssertEqual(limited.sources, [
+        let retained = detector.tickWithoutSnapshot(at: time(100))
+        XCTAssertTrue(retained.shouldHold)
+        XCTAssertEqual(retained.sources, [
             AutomaticWakeSource(surface: .codexCLI, evidence: .recentActivity),
         ])
-        XCTAssertTrue(detector.tickWithoutSnapshot(at: time(101)).isCeilingLimited)
-        XCTAssertTrue(detector.update(processes: [headless], at: time(102)).isCeilingLimited)
+        XCTAssertTrue(detector.tickWithoutSnapshot(at: time(101)).shouldHold)
+        XCTAssertTrue(detector.update(processes: [headless], at: time(102)).shouldHold)
     }
 
-    func testPerProcessSamplingFailureRetainsEvidenceAndCeilingLatch() {
-        var detector = AgentActivityDetector(holdCeilingSeconds: 100)
+    func testPerProcessSamplingFailureRetainsEvidence() {
+        var detector = AgentActivityDetector()
         let headless = sample(pid: 93, name: "codex", terminal: false)
         _ = detector.update(processes: [headless], at: time(0))
 
-        let limited = detector.update(
+        let retained = detector.update(
             processes: [],
             at: time(100),
             unavailableProcessIdentifiers: Set([93])
         )
-        XCTAssertFalse(limited.shouldHold)
-        XCTAssertTrue(limited.isCeilingLimited)
+        XCTAssertTrue(retained.shouldHold)
         XCTAssertTrue(
             detector.update(
                 processes: [],
                 at: time(101),
                 unavailableProcessIdentifiers: Set([93])
-            ).isCeilingLimited
+            ).shouldHold
         )
-        XCTAssertTrue(detector.update(processes: [headless], at: time(102)).isCeilingLimited)
-        XCTAssertFalse(detector.update(processes: [], at: time(103)).isCeilingLimited)
+        XCTAssertTrue(detector.update(processes: [headless], at: time(102)).shouldHold)
+        XCTAssertFalse(detector.update(processes: [], at: time(103)).shouldHold)
     }
 
     func testSamplingFailureEvidenceExpiresAfterQuietPeriod() {
@@ -659,8 +651,7 @@ final class AgentActivityDetectorTests: XCTestCase {
             sources: [
                 AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
                 AutomaticWakeSource(surface: .claudeCLI, evidence: .recentActivity),
-            ],
-            isCeilingLimited: false
+            ]
         )
 
         XCTAssertEqual(
@@ -669,25 +660,12 @@ final class AgentActivityDetectorTests: XCTestCase {
                 shouldHold: true,
                 sources: [
                     AutomaticWakeSource(surface: .claudeCLI, evidence: .recentActivity),
-                ],
-                isCeilingLimited: false
+                ]
             )
         )
         XCTAssertEqual(
             state.restricted(to: []),
-            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
-        )
-
-        let limited = AutomaticWakeState(
-            shouldHold: false,
-            sources: [
-                AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
-            ],
-            isCeilingLimited: true
-        )
-        XCTAssertEqual(
-            limited.restricted(to: Set([.claudeCLI])),
-            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+            AutomaticWakeState(shouldHold: false, sources: [])
         )
     }
 
@@ -701,7 +679,7 @@ final class AgentActivityDetectorTests: XCTestCase {
                 at: time(1),
                 enabledSurfaces: Set([.claudeCLI])
             ),
-            AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+            AutomaticWakeState(shouldHold: false, sources: [])
         )
     }
 
@@ -715,8 +693,7 @@ final class AgentActivityDetectorTests: XCTestCase {
     ) -> AutomaticWakeState {
         AutomaticWakeState(
             shouldHold: true,
-            sources: [AutomaticWakeSource(surface: surface, evidence: evidence)],
-            isCeilingLimited: false
+            sources: [AutomaticWakeSource(surface: surface, evidence: evidence)]
         )
     }
 

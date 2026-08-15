@@ -81,31 +81,26 @@ public struct AutomaticWakeSource: Equatable, Sendable {
 public struct AutomaticWakeState: Equatable, Sendable {
     public let shouldHold: Bool
     public let sources: [AutomaticWakeSource]
-    public let isCeilingLimited: Bool
 
     public init(
         shouldHold: Bool,
-        sources: [AutomaticWakeSource],
-        isCeilingLimited: Bool
+        sources: [AutomaticWakeSource]
     ) {
         self.shouldHold = shouldHold
         self.sources = sources
-        self.isCeilingLimited = isCeilingLimited
     }
 
     public func restricted(to enabledSurfaces: Set<AgentSurface>) -> AutomaticWakeState {
         let restrictedSources = sources.filter { enabledSurfaces.contains($0.surface) }
         return AutomaticWakeState(
             shouldHold: shouldHold && !restrictedSources.isEmpty,
-            sources: restrictedSources,
-            isCeilingLimited: isCeilingLimited && !restrictedSources.isEmpty
+            sources: restrictedSources
         )
     }
 }
 
 public struct AgentActivityDetector: Sendable {
     public static let defaultQuietPeriodSeconds: UInt64 = 30 * 60
-    public static let defaultHoldCeilingSeconds: UInt64 = 8 * 60 * 60
     public static let minimumActivityCPUTimeNanoseconds: UInt64 = 50_000_000
 
     private struct SessionKey: Hashable, Sendable {
@@ -124,19 +119,12 @@ public struct AgentActivityDetector: Sendable {
     }
 
     private let quietPeriodSeconds: UInt64
-    private let holdCeilingSeconds: UInt64
     private var sessions: [SessionKey: SessionState] = [:]
     private var remoteCodexDesktopRoots: Set<AgentProcessIdentity> = []
     private var remoteCodexActivityStates: [AgentProcessIdentity: RemoteCodexActivityState] = [:]
-    private var holdStartedAt: MonotonicTime?
-    private var ceilingBlocked = false
 
-    public init(
-        quietPeriodSeconds: UInt64 = Self.defaultQuietPeriodSeconds,
-        holdCeilingSeconds: UInt64 = Self.defaultHoldCeilingSeconds
-    ) {
+    public init(quietPeriodSeconds: UInt64 = Self.defaultQuietPeriodSeconds) {
         self.quietPeriodSeconds = quietPeriodSeconds
-        self.holdCeilingSeconds = holdCeilingSeconds
     }
 
     public mutating func update(
@@ -244,7 +232,7 @@ public struct AgentActivityDetector: Sendable {
         let sources = evidenceBySurface
             .map { AutomaticWakeSource(surface: $0.key, evidence: $0.value) }
             .sorted { $0.surface.rawValue < $1.surface.rawValue }
-        return resolveHoldState(sources: sources, at: now)
+        return resolveHoldState(sources: sources)
     }
 
     public mutating func tickWithoutSnapshot(
@@ -264,34 +252,11 @@ public struct AgentActivityDetector: Sendable {
         let sources = evidenceBySurface
             .map { AutomaticWakeSource(surface: $0.key, evidence: $0.value) }
             .sorted { $0.surface.rawValue < $1.surface.rawValue }
-        return resolveHoldState(sources: sources, at: now)
+        return resolveHoldState(sources: sources)
     }
 
-    private mutating func resolveHoldState(
-        sources: [AutomaticWakeSource],
-        at now: MonotonicTime
-    ) -> AutomaticWakeState {
-        guard !sources.isEmpty else {
-            holdStartedAt = nil
-            ceilingBlocked = false
-            return AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
-        }
-
-        if ceilingBlocked {
-            return AutomaticWakeState(shouldHold: false, sources: sources, isCeilingLimited: true)
-        }
-
-        if let holdStartedAt,
-           elapsedSeconds(from: holdStartedAt, to: now) >= holdCeilingSeconds {
-            self.holdStartedAt = nil
-            ceilingBlocked = true
-            return AutomaticWakeState(shouldHold: false, sources: sources, isCeilingLimited: true)
-        }
-
-        if holdStartedAt == nil {
-            holdStartedAt = now
-        }
-        return AutomaticWakeState(shouldHold: true, sources: sources, isCeilingLimited: false)
+    private func resolveHoldState(sources: [AutomaticWakeSource]) -> AutomaticWakeState {
+        AutomaticWakeState(shouldHold: !sources.isEmpty, sources: sources)
     }
 
     private mutating func activityEvidence(

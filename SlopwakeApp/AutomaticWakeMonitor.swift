@@ -12,8 +12,7 @@ final class AutomaticWakeMonitor {
 
     private(set) var state = AutomaticWakeState(
         shouldHold: false,
-        sources: [],
-        isCeilingLimited: false
+        sources: []
     )
     var stateChangeHandler: ((AutomaticWakeState) -> Void)?
 

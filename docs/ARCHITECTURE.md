@@ -1,7 +1,6 @@
 # Architecture
 
-`slopwake` turns agent activity and manual requests into one bounded macOS wake
-hold.
+`slopwake` turns agent activity and manual requests into one macOS wake hold.
 
 ```mermaid
 flowchart LR
@@ -23,7 +22,7 @@ flowchart LR
 | `SlopwakeCore` | Detection state, monotonic timers, wake policy, preferences, and child lifecycle |
 | App services | Process and battery sampling, login-item state, and preference storage |
 | `WakeMenuModel` | Reconcile live inputs and user actions into policy, child state, and menu state |
-| SwiftUI menu | Present status and send bounded actions to the model |
+| SwiftUI menu | Present status and send user actions to the model |
 
 ## Detection
 
@@ -55,7 +54,6 @@ The policy guarantees:
 - manual and automatic demand form a union;
 - manual holds are limited to 30 minutes, one hour, or eight hours;
 - automatic activity expires after 30 quiet minutes;
-- continuous automatic demand stops after eight hours until an idle transition;
 - the configured battery cutoff releases demand and fails safe when charge is
   unavailable on battery power;
 - wall-clock changes cannot extend or prematurely expire timers.
@@ -74,5 +72,5 @@ or report an actionable error.
 battery cutoff, and the observed Start at Login state. The Service Management
 API remains authoritative for the login item.
 
-Policy timers, activity evidence, process identities, ceiling state, and pause
-state are memory-only. Relaunching starts a new session.
+Policy timers, activity evidence, process identities, and pause state are
+memory-only. Relaunching starts a new session.

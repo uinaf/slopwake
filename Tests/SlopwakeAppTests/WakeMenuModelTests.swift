@@ -81,8 +81,7 @@ final class WakeMenuModelTests: XCTestCase {
             shouldHold: true,
             sources: [
                 AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess),
-            ],
-            isCeilingLimited: false
+            ]
         )
         withModel(automaticState: automatic) { model, controller, _, _, _ in
             XCTAssertTrue(model.isHolding)
@@ -98,8 +97,7 @@ final class WakeMenuModelTests: XCTestCase {
     func testReenablingDetectorRestoresCurrentMonitorEvidenceImmediately() {
         let automatic = AutomaticWakeState(
             shouldHold: true,
-            sources: [AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess)],
-            isCeilingLimited: false
+            sources: [AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess)]
         )
         withModel(automaticState: automatic) { model, _, _, _, _ in
             model.setSurface(.codexCLI, enabled: false)
@@ -226,8 +224,7 @@ final class WakeMenuModelTests: XCTestCase {
         var time = MonotonicTime(seconds: 0)
         let automatic = AutomaticWakeState(
             shouldHold: true,
-            sources: [AutomaticWakeSource(surface: .codexDesktop, evidence: .activeProcess)],
-            isCeilingLimited: false
+            sources: [AutomaticWakeSource(surface: .codexDesktop, evidence: .activeProcess)]
         )
         withModel(automaticState: automatic, currentTime: { time }) { model, _, _, _, _ in
             XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
@@ -273,8 +270,7 @@ final class WakeMenuModelTests: XCTestCase {
     private func withModel(
         automaticState: AutomaticWakeState = AutomaticWakeState(
             shouldHold: false,
-            sources: [],
-            isCeilingLimited: false
+            sources: []
         ),
         loginItemState: LoginItemState = .disabled,
         currentTime: @escaping @MainActor () -> MonotonicTime = {

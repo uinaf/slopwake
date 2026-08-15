@@ -58,7 +58,6 @@ public enum WakeMenuStatus: Equatable, Sendable {
     case manual(remainingSeconds: UInt64, automaticAlsoActive: Bool)
     case paused(remainingSeconds: UInt64?)
     case batteryLimited(percentage: Int?, cutoffPercentage: Int)
-    case ceilingLimited
 
     public var displayText: String {
         switch self {
@@ -78,8 +77,6 @@ public enum WakeMenuStatus: Equatable, Sendable {
             } else {
                 "battery limited · charge unavailable · cutoff \(cutoffPercentage)%"
             }
-        case .ceilingLimited:
-            "ceiling limited · automatic hold released"
         }
     }
 
@@ -218,15 +215,6 @@ public struct WakePolicy: Sendable {
                 status: .paused(remainingSeconds: pauseRemaining),
                 sources: automatic.sources,
                 isAutomaticPaused: true
-            )
-        }
-
-        if automatic.isCeilingLimited {
-            automaticStartedAt = nil
-            return WakePolicyState(
-                shouldHold: false,
-                status: .ceilingLimited,
-                sources: automatic.sources
             )
         }
 

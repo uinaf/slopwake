@@ -203,34 +203,6 @@ final class WakePolicyTests: XCTestCase {
         )
     }
 
-    func testCeilingStateIsVisibleAndManualCanStillHold() {
-        var policy = WakePolicy()
-        let limited = AutomaticWakeState(
-            shouldHold: false,
-            sources: [source(.cursorDesktop)],
-            isCeilingLimited: true
-        )
-        XCTAssertEqual(
-            policy.evaluate(
-                automatic: limited,
-                battery: .externalPower,
-                batteryCutoffPercentage: 15,
-                at: time(0)
-            ).status,
-            .ceilingLimited
-        )
-
-        policy.startManualHold(.thirtyMinutes, at: time(1))
-        XCTAssertTrue(
-            policy.evaluate(
-                automatic: limited,
-                battery: .externalPower,
-                batteryCutoffPercentage: 15,
-                at: time(2)
-            ).shouldHold
-        )
-    }
-
     func testMonotonicClockRegressionDoesNotExpireManualOrPause() {
         var policy = WakePolicy()
         policy.startManualHold(.thirtyMinutes, at: time(100))
@@ -309,21 +281,16 @@ final class WakePolicyTests: XCTestCase {
             ).displayText,
             "battery limited · 14% ≤ 15%"
         )
-        XCTAssertEqual(
-            WakeMenuStatus.ceilingLimited.displayText,
-            "ceiling limited · automatic hold released"
-        )
     }
 
     private var idle: AutomaticWakeState {
-        AutomaticWakeState(shouldHold: false, sources: [], isCeilingLimited: false)
+        AutomaticWakeState(shouldHold: false, sources: [])
     }
 
     private func automatic(_ surface: AgentSurface) -> AutomaticWakeState {
         AutomaticWakeState(
             shouldHold: true,
-            sources: [source(surface)],
-            isCeilingLimited: false
+            sources: [source(surface)]
         )
     }
 
