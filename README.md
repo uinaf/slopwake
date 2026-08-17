@@ -1,6 +1,6 @@
 ![slopwake — keep your slopshop awake.](https://uinaf.dev/og/banner/slopwake.png)
 
-# slopwake
+# uinaf/slopwake
 
 Keep your slopshop awake.
 
