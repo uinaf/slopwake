@@ -34,7 +34,7 @@ ruby -rjson -e '
 '
 ruby -ryaml -e '
   YAML.load_file(".github/workflows/ci.yml")
-  YAML.load_file(".github/workflows/secrets.yml")
+  YAML.load_file(".github/workflows/scan.yml")
   YAML.load_file(".github/dependabot.yml")
 '
 grep -Fq 'gh release view "${RELEASE_TAG}" --json databaseId,isDraft' .github/workflows/ci.yml
