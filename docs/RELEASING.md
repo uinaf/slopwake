@@ -15,11 +15,12 @@ semantic-release again.
 | breaking change | major |
 | `build:`, `chore:`, `ci:`, `docs:`, `test:` | none |
 
-`semantic-release` writes the selected version to `VERSION` and the canonical
-`project.yml`, then `uinaf-releaser` commits both through GitHub's API so the
-org `required_signatures` ruleset accepts the writeback. The commit message
-includes `[skip ci]`, and that commit is tagged `v<version>`. The app build
-receives the same version as `CFBundleShortVersionString`.
+- `semantic-release` writes the selected version to `VERSION` and the
+  canonical `project.yml`.
+- `uinaf-releaser` commits both through GitHub's API so the org
+  `required_signatures` ruleset accepts the writeback.
+- The writeback commit includes `[skip ci]` and is tagged `v<version>`.
+- The app build receives the same version as `CFBundleShortVersionString`.
 
 ## Pipeline
 
