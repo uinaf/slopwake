@@ -89,6 +89,8 @@ jobs:
         with:
           path: |
             .artifacts/toolchain
+            .artifacts/xcodegen
+            Slopwake.xcodeproj
             DerivedData/Test
             DerivedData/Build
           key: verify-xcode-v1-${{ github.event.repository.name }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-toolchain.outputs.hash }}-${{ hashFiles('Package.swift', 'project.yml', 'Sources/**', 'SlopwakeApp/**', 'Tests/**', 'Makefile', 'scripts/generate-project.sh', 'scripts/install-xcodegen.sh', '.github/workflows/ci.yml') }}

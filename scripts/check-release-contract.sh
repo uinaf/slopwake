@@ -53,6 +53,8 @@ done
 grep -Fq 'id: xcode-toolchain' .github/workflows/ci.yml
 grep -Fq 'key: verify-swiftpm-v1-' .github/workflows/ci.yml
 grep -Fq 'key: verify-xcode-v1-' .github/workflows/ci.yml
+grep -Fq '.artifacts/xcodegen' .github/workflows/ci.yml
+grep -Fq 'Slopwake.xcodeproj' .github/workflows/ci.yml
 grep -Fq 'DerivedData/Test' .github/workflows/ci.yml
 grep -Fq 'DerivedData/Build' .github/workflows/ci.yml
 grep -Fq "github.event_name != 'workflow_dispatch'" .github/workflows/ci.yml
