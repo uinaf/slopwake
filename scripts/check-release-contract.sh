@@ -45,6 +45,16 @@ fi
 grep -Fq 'gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"' .github/workflows/ci.yml
 grep -Fq 'workflow_dispatch:' .github/workflows/ci.yml
 grep -Fq 'group: verify-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}' .github/workflows/ci.yml
+grep -Fq -- '--use-cache' scripts/generate-project.sh
+grep -Fq -- '--cache-path "${cache_path}"' scripts/generate-project.sh
+for package_flag in -disableAutomaticPackageResolution -skipPackageUpdates; do
+  grep -Fq -- "${package_flag}" Makefile
+done
+grep -Fq 'id: xcode-toolchain' .github/workflows/ci.yml
+grep -Fq 'key: verify-swiftpm-v1-' .github/workflows/ci.yml
+grep -Fq 'key: verify-xcode-v1-' .github/workflows/ci.yml
+grep -Fq 'DerivedData/Test' .github/workflows/ci.yml
+grep -Fq 'DerivedData/Build' .github/workflows/ci.yml
 grep -Fq "github.event_name != 'workflow_dispatch'" .github/workflows/ci.yml
 grep -Fq 'cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"' .github/workflows/ci.yml
 grep -Fq 'brew audit --online --strict --cask uinaf/tap/slopwake' .github/workflows/ci.yml

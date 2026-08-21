@@ -24,6 +24,8 @@ app-test: project
 		-configuration Debug \
 		-destination 'platform=macOS,arch=$(HOST_ARCH)' \
 		-derivedDataPath $(TEST_DERIVED_DATA) \
+		-disableAutomaticPackageResolution \
+		-skipPackageUpdates \
 		CODE_SIGN_IDENTITY=- \
 		ONLY_ACTIVE_ARCH=YES \
 		ARCHS=$(HOST_ARCH) \
@@ -39,6 +41,8 @@ build: project
 		-configuration Release \
 		-destination 'generic/platform=macOS' \
 		-derivedDataPath $(BUILD_DERIVED_DATA) \
+		-disableAutomaticPackageResolution \
+		-skipPackageUpdates \
 		CODE_SIGNING_ALLOWED=NO \
 		MARKETING_VERSION=$(RELEASE_VERSION) \
 		CURRENT_PROJECT_VERSION=$(BUILD_NUMBER) \

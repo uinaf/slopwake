@@ -68,6 +68,33 @@ jobs:
       - name: Select Xcode 26.6
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
 
+      - name: Fingerprint Xcode toolchain
+        id: xcode-toolchain
+        run: |
+          xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "${xcode_version}"
+          version_hash="$(printf '%s' "${xcode_version}" | shasum -a 256 | cut -d ' ' -f 1)"
+          echo "hash=${version_hash}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore SwiftPM build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: verify-swiftpm-v1-${{ github.event.repository.name }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-toolchain.outputs.hash }}-${{ hashFiles('Package.swift', 'Sources/**', 'Tests/SlopwakeCoreTests/**', 'Makefile') }}
+          restore-keys: |
+            verify-swiftpm-v1-${{ github.event.repository.name }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-toolchain.outputs.hash }}-
+
+      - name: Restore incremental Xcode build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .artifacts/toolchain
+            DerivedData/Test
+            DerivedData/Build
+          key: verify-xcode-v1-${{ github.event.repository.name }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-toolchain.outputs.hash }}-${{ hashFiles('Package.swift', 'project.yml', 'Sources/**', 'SlopwakeApp/**', 'Tests/**', 'Makefile', 'scripts/generate-project.sh', 'scripts/install-xcodegen.sh', '.github/workflows/ci.yml') }}
+          restore-keys: |
+            verify-xcode-v1-${{ github.event.repository.name }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode-toolchain.outputs.hash }}-
+
       - name: Verify
         run: make verify-product-lanes -j3
 
