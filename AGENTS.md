@@ -3,7 +3,8 @@
 ## Start
 
 - Require macOS 26+ and Xcode 26+.
-- Run `make verify` before handing off a completed change.
+- Run `make release-check` for docs-only changes. Run `make verify` for product,
+  build, installer, release, or CI changes before handoff.
 - Treat `project.yml` as canonical; `Slopwake.xcodeproj` is generated.
 
 ## Boundaries

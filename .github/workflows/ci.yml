@@ -14,8 +14,44 @@ on:
 permissions: {}
 
 jobs:
-  verify:
+  changes:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      product: ${{ steps.filter.outputs.product }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: .github/verification-paths.yml
+
+  verify-contract:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify release contract
+        run: make release-check
+
+  verify-product:
+    needs: [changes]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.product == 'true' }}
     runs-on: macos-26
     timeout-minutes: 20
     permissions:
@@ -33,7 +69,25 @@ jobs:
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
 
       - name: Verify
-        run: make verify
+        run: make verify-product-lanes -j3
+
+  verify:
+    needs: [verify-contract, verify-product]
+    if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require selected verification
+        env:
+          CONTRACT_RESULT: ${{ needs.verify-contract.result }}
+          PRODUCT_RESULT: ${{ needs.verify-product.result }}
+        run: |
+          test "${CONTRACT_RESULT}" = success
+          case "${PRODUCT_RESULT}" in
+            success|skipped) ;;
+            *) exit 1 ;;
+          esac
 
   release:
     needs: [verify]

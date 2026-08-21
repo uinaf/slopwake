@@ -1,0 +1,11 @@
+product:
+  - ".github/**"
+  - ".releaserc.json"
+  - "Makefile"
+  - "Package.swift"
+  - "Sources/**"
+  - "SlopwakeApp/**"
+  - "Tests/**"
+  - "VERSION"
+  - "project.yml"
+  - "scripts/**"

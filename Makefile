@@ -3,8 +3,11 @@ SHELL := /bin/bash
 HOST_ARCH := $(shell uname -m)
 RELEASE_VERSION ?= $(shell sed -n '1p' VERSION)
 BUILD_NUMBER ?= 1
+VERIFY_JOBS ?= 4
+TEST_DERIVED_DATA ?= DerivedData/Test
+BUILD_DERIVED_DATA ?= DerivedData/Build
 
-.PHONY: project test core-test app-test release-check build verify release clean
+.PHONY: project test core-test app-test release-check build verify verify-lanes verify-product-lanes release clean
 
 project:
 	./scripts/generate-project.sh
@@ -20,7 +23,7 @@ app-test: project
 		-scheme Slopwake \
 		-configuration Debug \
 		-destination 'platform=macOS,arch=$(HOST_ARCH)' \
-		-derivedDataPath DerivedData \
+		-derivedDataPath $(TEST_DERIVED_DATA) \
 		CODE_SIGN_IDENTITY=- \
 		ONLY_ACTIVE_ARCH=YES \
 		ARCHS=$(HOST_ARCH) \
@@ -35,7 +38,7 @@ build: project
 		-scheme Slopwake \
 		-configuration Release \
 		-destination 'generic/platform=macOS' \
-		-derivedDataPath DerivedData \
+		-derivedDataPath $(BUILD_DERIVED_DATA) \
 		CODE_SIGNING_ALLOWED=NO \
 		MARKETING_VERSION=$(RELEASE_VERSION) \
 		CURRENT_PROJECT_VERSION=$(BUILD_NUMBER) \
@@ -44,7 +47,12 @@ build: project
 release: build
 	RELEASE_VERSION=$(RELEASE_VERSION) ./scripts/release.sh
 
-verify: test release-check build
+verify:
+	+$(MAKE) --no-print-directory -j$(VERIFY_JOBS) verify-lanes
+
+verify-lanes: verify-product-lanes release-check
+
+verify-product-lanes: core-test app-test build
 
 clean:
 	swift package clean
