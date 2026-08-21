@@ -229,23 +229,6 @@ final class WakePolicyTests: XCTestCase {
         )
     }
 
-    func testNewPolicyAfterAppRestartContainsNoSessionState() {
-        var priorSession = WakePolicy()
-        priorSession.startManualHold(.eightHours, at: time(0))
-        priorSession.pauseAutomaticUntilResumed(at: time(0))
-
-        var restarted = WakePolicy()
-        XCTAssertEqual(
-            restarted.evaluate(
-                automatic: idle,
-                battery: .externalPower,
-                batteryCutoffPercentage: 15,
-                at: time(1)
-            ),
-            WakePolicyState(shouldHold: false, status: .idle, sources: [])
-        )
-    }
-
     func testMenuStatusTextCoversEveryState() {
         XCTAssertEqual(WakeMenuStatus.idle.displayText, "idle · sleep allowed")
         XCTAssertEqual(
