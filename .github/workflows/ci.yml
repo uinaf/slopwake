@@ -16,7 +16,7 @@ permissions: {}
 jobs:
   changes:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -36,7 +36,7 @@ jobs:
 
   verify-contract:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
   verify-product:
     needs: [changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.product == 'true' }}
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 20
     permissions:
       contents: read
@@ -103,7 +103,7 @@ jobs:
   verify:
     needs: [verify-contract, verify-product]
     if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')) }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:
@@ -121,7 +121,7 @@ jobs:
   release:
     needs: [verify]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')) || github.event_name == 'workflow_dispatch' }}
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 120
     environment:
       name: release
