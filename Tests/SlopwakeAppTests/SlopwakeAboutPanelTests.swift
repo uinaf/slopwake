@@ -15,7 +15,7 @@ final class SlopwakeAboutPanelTests: XCTestCase {
 
         XCTAssertEqual(
             credits.attribute(.link, at: linkRange.location, effectiveRange: nil) as? URL,
-            URL(string: SlopwakeAboutPanel.repositoryURLString)
+            URL(string: "https://github.com/uinaf/slopwake")
         )
     }
 }
