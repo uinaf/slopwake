@@ -27,6 +27,7 @@ awk '
   }
 ' scripts/install.sh
 ruby -rjson -e '
+  JSON.parse(File.read("renovate.json"))
   config = JSON.parse(File.read(".releaserc.json"))
   plugins = config.fetch("plugins").flatten
   abort "expected @jno21/semantic-release-github-commit" unless plugins.include?("@jno21/semantic-release-github-commit")
@@ -35,7 +36,6 @@ ruby -rjson -e '
 ruby -ryaml -e '
   YAML.load_file(".github/workflows/ci.yml")
   YAML.load_file(".github/workflows/scan.yml")
-  YAML.load_file(".github/dependabot.yml")
 '
 grep -Fq 'gh release view "${RELEASE_TAG}" --json databaseId,isDraft' .github/workflows/ci.yml
 if grep -Fq 'echo "draft=false"' .github/workflows/ci.yml; then
