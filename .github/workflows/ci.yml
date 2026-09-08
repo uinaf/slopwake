@@ -110,12 +110,18 @@ jobs:
       - name: Require selected verification
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
-          PRODUCT_SELECTED: ${{ github.event_name != 'pull_request' || needs.changes.outputs.product == 'true' }}
+          PRODUCT_SELECTED: ${{ needs.changes.outputs.product }}
+          EVENT_NAME: ${{ github.event_name }}
           CONTRACT_RESULT: ${{ needs.verify-contract.result }}
           PRODUCT_RESULT: ${{ needs.verify-product.result }}
         run: |
           test "$CHANGES_RESULT" = success
           test "${CONTRACT_RESULT}" = success
+          case "$PRODUCT_SELECTED" in
+            true|false) ;;
+            *) exit 1 ;;
+          esac
+          if [ "$EVENT_NAME" != pull_request ]; then PRODUCT_SELECTED=true; fi
           case "$PRODUCT_SELECTED:$PRODUCT_RESULT" in
             true:success|false:skipped) ;;
             *) exit 1 ;;
