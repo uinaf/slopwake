@@ -50,3 +50,11 @@ stronger boundary.
   are out of scope.
 - Release credentials must remain outside the repository. Follow the
   [release workflow](docs/RELEASING.md).
+
+## Dependency automerge
+
+- Eligible Renovate updates use GitHub auto-merge after required checks: verify and scan / Gitleaks, scan / TruffleHog, scan / Actionlint, scan / Zizmor.
+- Checks are non-strict; repository admins and the existing release App retain direct writes through
+  a bypass limited to the check ruleset. Renovate has no bypass.
+- Shared release-age and major/digest rules remain unchanged. Add new voting
+  checks to the ruleset; workflow presence alone does not require them.
