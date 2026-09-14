@@ -72,6 +72,7 @@ final class WakeMenuModel {
         preferenceStore: WakePreferencesStore,
         loginItemController: any LoginItemControlling,
         startsServices: Bool = true,
+        notificationCenter: NotificationCenter = .default,
         currentTime: @escaping @MainActor () -> MonotonicTime = {
             MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
         }
@@ -121,6 +122,7 @@ final class WakeMenuModel {
         }
         if startsServices {
             menuTrackingObserver = MenuTrackingObserver(
+                notificationCenter: notificationCenter,
                 didBeginTracking: { [weak self] in
                     self?.menuTrackingDidBegin()
                 },
@@ -212,6 +214,7 @@ final class WakeMenuModel {
     }
 
     func menuTrackingDidBegin() {
+        refreshExternalState()
         menuTrackingDepth += 1
     }
 

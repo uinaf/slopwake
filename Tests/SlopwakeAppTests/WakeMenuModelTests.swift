@@ -221,15 +221,21 @@ final class WakeMenuModelTests: XCTestCase {
     }
 
     func testElapsedStatusAndMenuWidthStayFrozenWhileMenuIsTracked() {
+        let notificationCenter = NotificationCenter()
         var time = MonotonicTime(seconds: 0)
         let automatic = AutomaticWakeState(
             shouldHold: true,
             sources: [AutomaticWakeSource(surface: .codexDesktop, evidence: .activeProcess)]
         )
-        withModel(automaticState: automatic, currentTime: { time }) { model, _, _, _, _ in
+        withModel(
+            automaticState: automatic,
+            startsServices: true,
+            notificationCenter: notificationCenter,
+            currentTime: { time }
+        ) { model, _, _, _, _ in
             XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
 
-            NotificationCenter.default.post(
+            notificationCenter.post(
                 name: NSMenu.didBeginTrackingNotification,
                 object: NSMenu()
             )
@@ -238,11 +244,36 @@ final class WakeMenuModelTests: XCTestCase {
 
             XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
 
-            NotificationCenter.default.post(
+            notificationCenter.post(
                 name: NSMenu.didEndTrackingNotification,
                 object: NSMenu()
             )
 
+            XCTAssertEqual(model.statusText, "awake · automatic · 10:00 elapsed")
+        }
+    }
+
+    func testMenuOpenRefreshesLoginItemWithoutUnfreezingHoldStatus() {
+        var time = MonotonicTime(seconds: 0)
+        let automatic = AutomaticWakeState(
+            shouldHold: true,
+            sources: [AutomaticWakeSource(surface: .codexDesktop, evidence: .activeProcess)]
+        )
+        withModel(automaticState: automatic, currentTime: { time }) { model, _, _, _, loginItem in
+            XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
+            XCTAssertFalse(model.startsAtLogin)
+
+            loginItem.state = .enabled
+            model.menuTrackingDidBegin()
+
+            XCTAssertTrue(model.startsAtLogin)
+            XCTAssertTrue(model.preferences.startsAtLogin)
+
+            time = MonotonicTime(seconds: 600)
+            model.clockDidTick()
+            XCTAssertEqual(model.statusText, "awake · automatic · 0:00 elapsed")
+
+            model.menuTrackingDidEnd()
             XCTAssertEqual(model.statusText, "awake · automatic · 10:00 elapsed")
         }
     }
@@ -273,6 +304,8 @@ final class WakeMenuModelTests: XCTestCase {
             sources: []
         ),
         loginItemState: LoginItemState = .disabled,
+        startsServices: Bool = false,
+        notificationCenter: NotificationCenter = .default,
         currentTime: @escaping @MainActor () -> MonotonicTime = {
             MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
         },
@@ -302,8 +335,13 @@ final class WakeMenuModelTests: XCTestCase {
             batteryMonitor: batteryMonitor,
             preferenceStore: WakePreferencesStore(defaults: defaults),
             loginItemController: loginItemController,
+            startsServices: startsServices,
+            notificationCenter: notificationCenter,
             currentTime: currentTime
         )
+        if !startsServices {
+            model.clockDidTick()
+        }
         operation(
             model,
             controller,

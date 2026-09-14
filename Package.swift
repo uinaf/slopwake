@@ -20,5 +20,6 @@ let package = Package(
             dependencies: ["SlopwakeCore"],
             path: "Tests/SlopwakeCoreTests"
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
