@@ -20,7 +20,8 @@ struct SlopwakeApp: App {
         } label: {
             Image(model.isHolding ? "MenuActive" : "MenuIdle")
                 .renderingMode(.template)
-                .accessibilityLabel("slopwake · \(model.statusText)")
+                .accessibilityLabel("slopwake")
+                .accessibilityValue(model.statusText)
         }
         .menuBarExtraStyle(.menu)
     }
@@ -42,9 +43,14 @@ private struct WakeMenu: View {
     let model: WakeMenuModel
 
     var body: some View {
-        Label(model.statusText, systemImage: statusSymbol)
-            .font(.system(.body, design: .monospaced))
-            .foregroundStyle(model.isHolding ? UinafTokens.phosphor : Color.secondary)
+        Label {
+            Text(model.statusText)
+        } icon: {
+            Image(systemName: statusSymbol)
+                .accessibilityHidden(true)
+        }
+        .font(.system(.body, design: .monospaced))
+        .foregroundStyle(model.isHolding ? UinafTokens.phosphor : Color.secondary)
 
         ForEach(model.policyState.sources, id: \.surface) { source in
             Text("\(source.surface.displayName.lowercased()) · \(source.evidence.rawValue)")
@@ -72,7 +78,6 @@ private struct WakeMenu: View {
 
         Button("quit slopwake", action: model.quit)
             .keyboardShortcut("q")
-            .onAppear(perform: model.refreshExternalState)
     }
 
     private var manualMenu: some View {

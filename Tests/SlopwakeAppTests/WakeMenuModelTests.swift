@@ -220,6 +220,75 @@ final class WakeMenuModelTests: XCTestCase {
         }
     }
 
+    func testPauseAndResumeAutomaticReleasesAndRestoresTheHold() {
+        let automatic = AutomaticWakeState(
+            shouldHold: true,
+            sources: [AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess)]
+        )
+        withModel(automaticState: automatic) { model, controller, _, _, _ in
+            XCTAssertTrue(model.isHolding)
+
+            model.pauseAutomatic(.thirtyMinutes)
+            XCTAssertFalse(model.isHolding)
+            XCTAssertGreaterThan(controller.stopCount, 0)
+            XCTAssertTrue(model.statusText.hasPrefix("paused ·"))
+
+            model.resumeAutomatic()
+            XCTAssertTrue(model.isHolding)
+            XCTAssertTrue(model.statusText.hasPrefix("awake · automatic ·"))
+        }
+    }
+
+    func testEndManualHoldReleasesWhenAutomaticIsIdle() {
+        withModel { model, controller, _, _, _ in
+            model.startManualHold(.oneHour)
+            XCTAssertTrue(model.isHolding)
+
+            model.endManualHold()
+            XCTAssertFalse(model.isHolding)
+            XCTAssertGreaterThan(controller.stopCount, 0)
+            XCTAssertEqual(model.statusText, "idle · sleep allowed")
+        }
+    }
+
+    func testBatteryCutoffAtTheMenuBoundaryReleasesHold() {
+        let automatic = AutomaticWakeState(
+            shouldHold: true,
+            sources: [AutomaticWakeSource(surface: .codexCLI, evidence: .activeProcess)]
+        )
+        withModel(automaticState: automatic) { model, controller, _, battery, _ in
+            XCTAssertTrue(model.isHolding)
+
+            battery.state = BatteryState(percentage: 5, powerSource: .battery)
+            model.setBatteryCutoffPercentage(15)
+
+            XCTAssertFalse(model.isHolding)
+            XCTAssertGreaterThan(controller.stopCount, 0)
+            XCTAssertEqual(
+                model.statusText,
+                "battery limited · 5% ≤ 15%"
+            )
+        }
+    }
+
+    func testStatusTextShowsReleasingHoldWhileTheChildIsStillRunning() {
+        withModel { model, controller, _, _, _ in
+            model.startManualHold(.thirtyMinutes)
+            XCTAssertTrue(model.isHolding)
+
+            controller.stopClearsHold = false
+            model.endManualHold()
+
+            XCTAssertTrue(model.isHolding)
+            XCTAssertEqual(model.statusText, "awake · releasing hold")
+
+            controller.isHolding = false
+            model.clockDidTick()
+            XCTAssertFalse(model.isHolding)
+            XCTAssertEqual(model.statusText, "idle · sleep allowed")
+        }
+    }
+
     func testElapsedStatusAndMenuWidthStayFrozenWhileMenuIsTracked() {
         let notificationCenter = NotificationCenter()
         var time = MonotonicTime(seconds: 0)
@@ -362,6 +431,7 @@ private final class FakeWakeController: WakeHolding {
     private(set) var startCount = 0
     var observeUnexpectedExitOnNextStart = false
     var startError: Error?
+    var stopClearsHold = true
 
     func start(preventDisplaySleep: Bool) throws -> Bool {
         startCount += 1
@@ -384,7 +454,9 @@ private final class FakeWakeController: WakeHolding {
     func stop() -> Bool {
         stopCount += 1
         let stopped = isHolding
-        isHolding = false
+        if stopClearsHold {
+            isHolding = false
+        }
         return stopped
     }
 
