@@ -6,7 +6,11 @@ struct SystemProcessSnapshot: Sendable {
     let unavailableProcessIdentifiers: Set<Int32>
 }
 
-struct SystemProcessSnapshotSource: Sendable {
+protocol ProcessSnapshotSourcing: Sendable {
+    func snapshot(bundleIdentifiers: [pid_t: String]) -> SystemProcessSnapshot?
+}
+
+struct SystemProcessSnapshotSource: ProcessSnapshotSourcing {
     private let timebaseNumerator: UInt64
     private let timebaseDenominator: UInt64
 

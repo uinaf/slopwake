@@ -4,7 +4,9 @@ import SlopwakeCore
 
 @MainActor
 final class AutomaticWakeMonitor {
-    private let snapshotSource: SystemProcessSnapshotSource
+    private let snapshotSource: any ProcessSnapshotSourcing
+    private let bundleIdentifiers: @MainActor () -> [pid_t: String]
+    private let currentTime: @MainActor () -> MonotonicTime
     private var detector: AgentActivityDetector
     private var pollingTask: Task<Void, Never>?
 
@@ -17,11 +19,25 @@ final class AutomaticWakeMonitor {
     var stateChangeHandler: ((AutomaticWakeState) -> Void)?
 
     init(
-        snapshotSource: SystemProcessSnapshotSource = SystemProcessSnapshotSource(),
-        detector: AgentActivityDetector = AgentActivityDetector()
+        snapshotSource: any ProcessSnapshotSourcing = SystemProcessSnapshotSource(),
+        detector: AgentActivityDetector = AgentActivityDetector(),
+        bundleIdentifiers: @escaping @MainActor () -> [pid_t: String] = {
+            var identifiers: [pid_t: String] = [:]
+            for application in NSWorkspace.shared.runningApplications {
+                if let bundleIdentifier = application.bundleIdentifier {
+                    identifiers[application.processIdentifier] = bundleIdentifier
+                }
+            }
+            return identifiers
+        },
+        currentTime: @escaping @MainActor () -> MonotonicTime = {
+            MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
+        }
     ) {
         self.snapshotSource = snapshotSource
         self.detector = detector
+        self.bundleIdentifiers = bundleIdentifiers
+        self.currentTime = currentTime
     }
 
     func start() {
@@ -44,13 +60,8 @@ final class AutomaticWakeMonitor {
         pollingTask = nil
     }
 
-    private func poll() async {
-        var bundleIdentifiers: [pid_t: String] = [:]
-        for application in NSWorkspace.shared.runningApplications {
-            if let bundleIdentifier = application.bundleIdentifier {
-                bundleIdentifiers[application.processIdentifier] = bundleIdentifier
-            }
-        }
+    func poll() async {
+        let bundleIdentifiers = bundleIdentifiers()
         let snapshotSource = snapshotSource
         let sampledProcesses = await Task.detached {
             snapshotSource.snapshot(bundleIdentifiers: bundleIdentifiers)
@@ -58,7 +69,7 @@ final class AutomaticWakeMonitor {
         guard !Task.isCancelled else {
             return
         }
-        let now = MonotonicTime(seconds: UInt64(ProcessInfo.processInfo.systemUptime))
+        let now = currentTime()
         let nextState: AutomaticWakeState
         if let snapshot = sampledProcesses {
             nextState = detector.update(
