@@ -17,7 +17,7 @@ semantic-release again.
 
 - `semantic-release` writes the selected version to `VERSION` and the
   canonical `project.yml`.
-- `uinaf-releaser` commits both through GitHub's API so the org
+- `uinaf-ci` commits both through GitHub's API so the org
   `required_signatures` ruleset accepts the writeback.
 - The writeback commit includes `[skip ci]` and is tagged `v<version>`.
 - The app build receives the same version as `CFBundleShortVersionString`.
@@ -26,10 +26,10 @@ semantic-release again.
 
 1. `make verify` runs on a macOS 26 runner with Xcode 26.6.
 2. The protected `release` environment exposes Apple signing material and a
-   short-lived `uinaf-releaser` token. The job re-checks that live `main` still
+   short-lived `uinaf-ci` token. The job re-checks that live `main` still
    equals the analyzed SHA immediately before version writeback.
 3. `scripts/prepare-release.sh` writes `VERSION` and `project.yml` only.
-   `uinaf-releaser` commits those files through GitHub's API, then
+   `uinaf-ci` commits those files through GitHub's API, then
    `semantic-release` opens a draft GitHub Release. Exact-tag lookup fails if
    that expected Release is unavailable.
 4. The workflow then builds, Developer ID signs, notarizes, and uploads the ZIP
@@ -51,8 +51,8 @@ The `release` GitHub Environment is restricted to `main` and provides:
 
 | Name | Kind |
 | --- | --- |
-| `UINAF_RELEASE_APP_CLIENT_ID` | variable |
-| `UINAF_RELEASE_APP_PRIVATE_KEY` | secret |
+| `UINAF_CI_APP_CLIENT_ID` | variable |
+| `UINAF_CI_APP_PRIVATE_KEY` | secret |
 | `APPLE_TEAM_ID` | variable |
 | `APPLE_NOTARY_API_KEY_ID` | variable |
 | `APPLE_NOTARY_API_ISSUER_ID` | variable |
