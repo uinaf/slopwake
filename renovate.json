@@ -1,5 +1,43 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "platformAutomerge": true,
-  "extends": ["github>uinaf/renovate-config"]
+  "extends": [
+    "github>uinaf/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "Homebrew/actions uses four-part calendar tags the github-actions manager truncates; the regex manager below owns it",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "Homebrew/actions"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Same one-day release age as the github-actions manager",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "Homebrew/actions"
+      ],
+      "minimumReleaseAge": "1 day"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Homebrew/actions pinned by digest with a four-part calendar tag comment",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "uses: (?<depName>Homebrew/actions)/[\\w-]+@(?<currentDigest>[a-f0-9]{40}) # (?<currentValue>\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "loose"
+    }
+  ]
 }
