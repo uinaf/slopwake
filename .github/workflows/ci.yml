@@ -25,9 +25,6 @@ jobs:
       product: ${{ steps.filter.outputs.product }}
     steps:
       - name: Check out
-        # Pull requests are classified through the API and need only the
-        # filter file; push events diff against the previous commit and the
-        # filter deepens the shallow clone itself.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
