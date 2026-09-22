@@ -42,6 +42,11 @@ Prefer deterministic contract tests. Do not add tests whose only purpose is to
 re-prove macOS tool behavior or duplicate a contract already covered at a
 stronger boundary.
 
+CI classifies changed paths with `.github/verification-paths.yml`. Pull
+requests are classified through the GitHub API and need only the filter file
+checked out; push events diff against the previous commit, and the filter
+deepens the shallow clone itself.
+
 ## Project boundaries
 
 - `Sources/SlopwakeCore/` owns platform-independent policy and process control.
