@@ -27,7 +27,7 @@ mkdir -p "${tap_root}/Casks"
   echo
   echo '  url "https://github.com/uinaf/slopwake/releases/download/v#{version}/slopwake-#{version}-macos-universal.zip"'
   echo '  name "slopwake"'
-  echo '  desc "Keep your Mac awake while supported coding agents work"'
+  echo '  desc "Keep your slopshop awake while supported coding agents work"'
   echo '  homepage "https://github.com/uinaf/slopwake"'
   echo
   echo '  livecheck do'
