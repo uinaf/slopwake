@@ -6,6 +6,7 @@ BUILD_NUMBER ?= 1
 VERIFY_JOBS ?= 4
 TEST_DERIVED_DATA ?= DerivedData/Test
 BUILD_DERIVED_DATA ?= DerivedData/Build
+RELEASE_APP = $(BUILD_DERIVED_DATA)/Build/Products/Release/slopwake.app
 
 .PHONY: project test core-test app-test release-check build verify verify-lanes verify-product-lanes release clean
 
@@ -47,9 +48,10 @@ build: project
 		MARKETING_VERSION=$(RELEASE_VERSION) \
 		CURRENT_PROJECT_VERSION=$(BUILD_NUMBER) \
 		build
+	test -d "$(RELEASE_APP)"
 
 release: build
-	RELEASE_VERSION=$(RELEASE_VERSION) ./scripts/release.sh
+	RELEASE_VERSION=$(RELEASE_VERSION) RELEASE_APP="$(RELEASE_APP)" ./scripts/release.sh
 
 verify:
 	+$(MAKE) --no-print-directory -j$(VERIFY_JOBS) verify-lanes

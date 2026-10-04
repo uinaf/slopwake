@@ -26,8 +26,9 @@ done
 [[ "${APPLE_NOTARY_API_ISSUER_ID}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
   fail "APPLE_NOTARY_API_ISSUER_ID is invalid"
 
-source_app="DerivedData/Build/Products/Release/slopwake.app"
-[[ -d "${source_app}" ]] || fail "Release app is missing; run make build first"
+[[ -n "${RELEASE_APP:-}" ]] || fail "RELEASE_APP is required; run make release"
+source_app="${RELEASE_APP}"
+[[ -d "${source_app}" ]] || fail "Release app is missing at ${source_app}; run make build first"
 source_version="$(plutil -extract CFBundleShortVersionString raw -o - "${source_app}/Contents/Info.plist")"
 [[ "${source_version}" == "${RELEASE_VERSION}" ]] ||
   fail "Release app version ${source_version} does not match RELEASE_VERSION ${RELEASE_VERSION}"
