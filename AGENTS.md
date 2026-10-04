@@ -6,6 +6,11 @@
 - Run `make release-check` for docs-only changes. Run `make verify` for product,
   build, installer, release, or CI changes before handoff.
 - Treat `project.yml` as canonical; `Slopwake.xcodeproj` is generated.
+- Every push to `main` runs the release job. A `feat`, `fix`, `perf`, or
+  `refactor` commit publishes a signed, notarized GitHub release with an
+  immutable tag and updates the `uinaf/homebrew-tap` cask; `docs`, `test`,
+  `chore`, `build`, and `ci` release nothing. Pick the commit type for the
+  release it should cause.
 
 ## Boundaries
 
