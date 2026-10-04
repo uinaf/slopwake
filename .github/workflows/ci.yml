@@ -434,6 +434,7 @@ jobs:
           tap_root="$(brew --repository uinaf/tap)"
           mkdir -p "${tap_root}/Casks"
           cp homebrew-tap/Casks/slopwake.rb "${tap_root}/Casks/slopwake.rb"
+          brew style --cask uinaf/tap/slopwake
           brew audit --online --strict --cask uinaf/tap/slopwake
 
       - name: Commit signed Homebrew cask
