@@ -10,7 +10,8 @@
   contains `[skip ci]`. A `feat`, `fix`, `perf`, or `refactor` commit, or a
   revert, publishes a signed, notarized GitHub release with an immutable tag and
   updates the `uinaf/homebrew-tap` cask; `docs`, `test`, `chore`, `build`, and
-  `ci` release nothing. Pick the commit type for the release it should cause.
+  `ci` release nothing. A breaking change of any type releases a major version.
+  Pick the commit type for the release it should cause.
 
 ## Boundaries
 
