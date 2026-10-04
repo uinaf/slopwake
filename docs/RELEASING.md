@@ -90,9 +90,9 @@ version.
 ## Failure and recovery
 
 Draft discovery, signing, notarization, stapling, Gatekeeper, draft digest
-validation, Homebrew audit, and install smoke are hard failures. Temporary
-credentials and partial local staging directories are removed when the command
-exits.
+validation, Homebrew style and audit, and install smoke are hard failures.
+Temporary credentials and partial local staging directories are removed when
+the command exits.
 
 If release work stops after semantic-release creates a draft, inspect the draft
 and asset digest, then fix the failing step. Do not publish a draft by hand or
