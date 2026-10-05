@@ -36,8 +36,8 @@ semantic-release again.
    to that draft. It verifies the uploaded SHA-256 digest before publishing.
    Organization policy then makes the release asset and tag [immutable].
 5. The workflow writes the exact version and checksum to `uinaf/homebrew-tap`,
-   runs Homebrew's online cask audit, and commits the cask through GitHub's API
-   so the tap commit is App-signed.
+   runs `brew style` and Homebrew's online cask audit, and commits the cask
+   through GitHub's API so the tap commit is App-signed.
 6. A clean runner installs the cask, launches the app, observes an owned wake
    hold, quits it, checks that the hold exited, and uninstalls with preferences
    removed.
