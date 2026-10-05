@@ -43,7 +43,7 @@ if grep -Fq 'echo "draft=false"' .github/workflows/ci.yml; then
 fi
 grep -Fq 'gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"' .github/workflows/ci.yml
 grep -Fq 'workflow_dispatch:' .github/workflows/ci.yml
-grep -Fq 'group: verify-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}' .github/workflows/ci.yml
+grep -Fq "group: verify-\${{ github.workflow }}-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.run_id }}" .github/workflows/ci.yml
 grep -Fq -- '--use-cache' scripts/generate-project.sh
 grep -Fq -- '--cache-path "${cache_path}"' scripts/generate-project.sh
 for package_flag in -disableAutomaticPackageResolution -skipPackageUpdates; do
