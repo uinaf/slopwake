@@ -16,19 +16,37 @@ struct SlopwakeApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra(isInserted: .constant(model != nil)) {
-            if let model {
-                WakeMenu(model: model)
+        let menu = if model == nil {
+            MenuBarExtra(isInserted: .constant(false)) {
+                menuContent
+            } label: {
+                menuLabel
             }
-        } label: {
-            if let model {
-                Image(model.isHolding ? "MenuActive" : "MenuIdle")
-                    .renderingMode(.template)
-                    .accessibilityLabel("slopwake")
-                    .accessibilityValue(model.statusText)
+        } else {
+            MenuBarExtra {
+                menuContent
+            } label: {
+                menuLabel
             }
         }
-        .menuBarExtraStyle(.menu)
+        menu.menuBarExtraStyle(.menu)
+    }
+
+    @ViewBuilder
+    private var menuContent: some View {
+        if let model {
+            WakeMenu(model: model)
+        }
+    }
+
+    @ViewBuilder
+    private var menuLabel: some View {
+        if let model {
+            Image(model.isHolding ? "MenuActive" : "MenuIdle")
+                .renderingMode(.template)
+                .accessibilityLabel("slopwake")
+                .accessibilityValue(model.statusText)
+        }
     }
 }
 
