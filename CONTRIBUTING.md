@@ -26,7 +26,10 @@ make verify
 ```
 
 This runs the Swift package tests, the Xcode-hosted app-model tests, release
-contract checks, and a warning-strict universal Release build.
+contract checks, and a warning-strict universal Release build. The hosted test
+app skips live service creation, so it does not load or migrate the installed
+app's preferences, sample processes, or create a menu-bar control. App-model
+tests supply isolated preferences and fake services.
 
 Use a focused target while iterating:
 
