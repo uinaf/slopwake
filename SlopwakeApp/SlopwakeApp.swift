@@ -5,25 +5,48 @@ import SwiftUI
 @MainActor
 struct SlopwakeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = WakeMenuModel(
-        controller: WakeServices.shared.controller,
-        automaticMonitor: WakeServices.shared.automaticMonitor,
-        batteryMonitor: WakeServices.shared.batteryMonitor,
-        preferenceStore: WakeServices.shared.preferences,
-        loginItemController: WakeServices.shared.loginItemController,
-        startsServices: ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
-    )
+    @State private var model = WakeServices.shared.map { services in
+        WakeMenuModel(
+            controller: services.controller,
+            automaticMonitor: services.automaticMonitor,
+            batteryMonitor: services.batteryMonitor,
+            preferenceStore: services.preferences,
+            loginItemController: services.loginItemController
+        )
+    }
 
     var body: some Scene {
-        MenuBarExtra {
+        let menu = if model == nil {
+            MenuBarExtra(isInserted: .constant(false)) {
+                menuContent
+            } label: {
+                menuLabel
+            }
+        } else {
+            MenuBarExtra {
+                menuContent
+            } label: {
+                menuLabel
+            }
+        }
+        menu.menuBarExtraStyle(.menu)
+    }
+
+    @ViewBuilder
+    private var menuContent: some View {
+        if let model {
             WakeMenu(model: model)
-        } label: {
+        }
+    }
+
+    @ViewBuilder
+    private var menuLabel: some View {
+        if let model {
             Image(model.isHolding ? "MenuActive" : "MenuIdle")
                 .renderingMode(.template)
                 .accessibilityLabel("slopwake")
                 .accessibilityValue(model.statusText)
         }
-        .menuBarExtraStyle(.menu)
     }
 }
 
