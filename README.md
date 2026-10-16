@@ -77,9 +77,6 @@ corporate policy.
 
 - [Architecture](docs/ARCHITECTURE.md) explains detection, policy, persistence,
   and process ownership.
-- [Branding](docs/BRANDING.md) records the canonical product-art source.
-- [Release workflow](docs/RELEASING.md) covers signing, notarization, and release
-  artifacts.
 - [Security](https://github.com/uinaf/slopwake/security/policy) explains private vulnerability reporting.
 
 ## Contributing

@@ -56,8 +56,7 @@ deepens the shallow clone itself.
 - `SlopwakeApp/` owns macOS monitoring, persistence, login items, and menu UI.
 - The deployment target is macOS 26. Compatibility branches for older releases
   are out of scope.
-- Release credentials must remain outside the repository. Follow the
-  [release workflow](docs/RELEASING.md).
+- Release credentials must remain outside the repository.
 
 ## Dependency automerge
 
