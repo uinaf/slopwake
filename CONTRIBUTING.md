@@ -14,8 +14,8 @@ make project
 open Slopwake.xcodeproj
 ```
 
-`project.yml` is the source of truth. The generated Xcode project is ignored
-and must not be edited as project configuration.
+`project.yml` is the source of truth; `Slopwake.xcodeproj` is generated and
+ignored by git.
 
 ## Verify
 
@@ -27,9 +27,8 @@ make verify
 
 This runs the Swift package tests, the Xcode-hosted app-model tests, release
 contract checks, and a warning-strict universal Release build. The hosted test
-app skips live service creation, so it does not load or migrate the installed
-app's preferences, sample processes, or create a menu-bar control. App-model
-tests supply isolated preferences and fake services.
+app starts without live services; app-model tests supply isolated preferences
+and fake services.
 
 Use a focused target while iterating:
 
@@ -41,28 +40,23 @@ Use a focused target while iterating:
 | `make build` | Universal arm64 and x86_64 Release app |
 | `make release RELEASE_VERSION=x.y.z` | Signed and notarized local artifact; requires injected credentials |
 
-Prefer deterministic contract tests. Do not add tests whose only purpose is to
-re-prove macOS tool behavior or duplicate a contract already covered at a
-stronger boundary.
+Write deterministic contract tests at the strongest boundary that owns the
+behavior; macOS tools are trusted as given.
 
-CI classifies changed paths with `.github/verification-paths.yml`. Pull
-requests are classified through the GitHub API and need only the filter file
-checked out; push events diff against the previous commit, and the filter
-deepens the shallow clone itself.
+CI picks verification lanes from the changed paths in
+`.github/verification-paths.yml`.
 
 ## Project boundaries
 
 - `Sources/SlopwakeCore/` owns platform-independent policy and process control.
 - `SlopwakeApp/` owns macOS monitoring, persistence, login items, and menu UI.
-- The deployment target is macOS 26. Compatibility branches for older releases
-  are out of scope.
-- Release credentials must remain outside the repository.
+- The deployment target is macOS 26 only.
+- Release credentials live outside the repository.
 
 ## Dependency automerge
 
 - Eligible Renovate updates use GitHub auto-merge after the required `verify`
   check.
-- Checks are non-strict; repository admins and the existing release App retain direct writes through
-  a bypass limited to the check ruleset. Renovate has no bypass.
-- Shared release-age and major/digest rules remain unchanged. Add new voting
-  checks to the ruleset; workflow presence alone does not require them.
+- Checks are non-strict. Repository admins and the release App bypass the
+  check ruleset for direct writes; Renovate does not.
+- A new workflow check becomes required only once it is added to the ruleset.
