@@ -21,13 +21,8 @@
 - Keep signing and notarization credentials outside the repository; use them
   only at the release command boundary.
 - Keep the README banner on uinaf.dev, not in the repository.
-
-## Read next
-
-- [Architecture](docs/ARCHITECTURE.md) before changing detection, wake policy,
-  persistence, or process ownership.
-- [Release runbook](https://app.notion.com/p/3e5e75710b5281d3a3e3dc8041e546fa)
-  (Notion) before changing signing, notarization, or release artifacts.
+- `Tests/` pins detection, wake policy, child-process, and persistence
+  behavior. Change a test only when that contract changes on purpose.
 
 ## Repository skills
 

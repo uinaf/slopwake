@@ -49,7 +49,6 @@ Automatic holds expire after 30 quiet minutes.
 
 ## Links
 
-- [Architecture](docs/ARCHITECTURE.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security](https://github.com/uinaf/slopwake/security/policy)
 - [MIT license](LICENSE)
