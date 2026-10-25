@@ -4,88 +4,54 @@
 
 Keep your slopshop awake.
 
-`slopwake` is a native macOS 26+ menu-bar app. It combines automatic agent
-activity with bounded manual holds. One owned `/usr/bin/caffeinate` child serves
-the resulting demand.
+A macOS 26+ menu-bar app. It holds one `/usr/bin/caffeinate` child while a
+coding agent is active or a manual hold runs.
 
 ## Install
-
-With Homebrew:
 
 ```sh
 brew install --cask uinaf/tap/slopwake
 ```
 
-Without Homebrew, install the latest signed release for your user:
+Without Homebrew:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh | bash
+# options: ... | bash -s -- --help
 ```
 
-The installer verifies the release SHA-256 digest, bundle identity, version,
-code signature, and Gatekeeper acceptance before copying `slopwake.app` to
-`~/Applications`. It never requests administrator access. Pass options after
-`bash -s --`, for example:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/uinaf/slopwake/main/scripts/install.sh | bash -s -- --help
-```
-
-The installer supports `--version`, `--install-dir`, and opt-in replacement
-with `--force`.
-
-Or download the universal ZIP from [GitHub Releases], then move
-`slopwake.app` to `~/Applications` without administrator access, or to
-`/Applications` if you have permission. The app is Developer ID signed and
-notarized.
+The installer checks the digest, signature, and Gatekeeper, then installs to
+`~/Applications` without administrator access. Or download the ZIP from
+[GitHub Releases].
 
 ## Use
 
-The menu exposes the current wake state and its active sources.
-
-- Start a manual hold for 30 minutes, one hour, or eight hours.
-- Pause automatic holds for 30 minutes, one hour, or until resumed.
-- Enable Codex, Claude, and Cursor desktop or CLI detection independently.
-- Allow display sleep, or keep the display awake while a hold is active.
-- Set a battery cutoff from 5% to 30%, disable the cutoff, or keep the 15%
-  default.
-- Opt into Start at Login.
-- Open the native About panel for the app version and GitHub project link.
+- Manual hold: 30 minutes, one hour, or eight hours.
+- Pause automatic holds: 30 minutes, one hour, or until resumed.
+- Detection for Codex, Claude, and Cursor, desktop and CLI, each toggled
+  separately.
+- Display sleep stays allowed unless you turn it off.
+- Battery cutoff: 5% to 30%, default 15%, or off.
+- Start at Login: opt-in.
 
 Automatic holds expire after 30 quiet minutes.
 
-## Safety and privacy
+## Privacy
 
-Manual and automatic demand share one wake policy and one child process. The
-child exits with the app, battery policy can release it, and display sleep stays
-enabled by default.
+- Only preferences persist. Timers, detected processes, and activity reset on
+  quit.
+- Detection reads process identity, parents, terminal presence, and CPU
+  counters. It never reads prompts, transcripts, files, windows, or network
+  traffic.
+- No accounts, analytics, telemetry, or network calls at runtime.
+- Detection is best-effort. `slopwake` does not bypass closed-lid sleep without
+  an external display, or corporate policy.
 
-Only preferences persist. Manual timers, pause timers, detected processes, and
-activity state reset when the app exits.
+## Links
 
-Detection uses process identity, parent relationships, terminal presence, and
-cumulative CPU counters. It does not inspect prompts, transcripts, files,
-windows, or network traffic. The app has no accounts, analytics, telemetry, or
-runtime network calls.
-
-Detection is best-effort; it does not claim exact agent turn state. Wake holds
-support an open lid. Normal powered clamshell use with an external display
-continues to work, but `slopwake` does not bypass macOS bare closed-lid sleep or
-corporate policy.
-
-## Documentation
-
-- [Architecture](docs/ARCHITECTURE.md) explains detection, policy, persistence,
-  and process ownership.
-- [Security](https://github.com/uinaf/slopwake/security/policy) explains private vulnerability reporting.
-
-## Contributing
-
-Development requires macOS 26+ and Xcode 26+. See
-[Contributing](CONTRIBUTING.md) for setup and verification commands.
-
-## License
-
-[MIT](LICENSE)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](https://github.com/uinaf/slopwake/security/policy)
+- [MIT license](LICENSE)
 
 [GitHub Releases]: https://github.com/uinaf/slopwake/releases
