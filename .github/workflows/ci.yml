@@ -398,7 +398,7 @@ jobs:
 
       - name: Set up Homebrew
         if: ${{ steps.gate.outputs.active == 'true' && (steps.publish.outputs.published == 'true' || steps.release-state.outputs.published == 'true') }}
-        uses: Homebrew/actions/setup-homebrew@c262868c096d909fc278daa87ed9772967331ea3 # 2026.11.02.1
+        uses: Homebrew/actions/setup-homebrew@63a2d4d8d4193eab3e62b1b782ff3ab8408f5b29 # 2026.11.09.1
         with:
           brew-gh-api-token: ${{ steps.tap-bot.outputs.token }}
 
