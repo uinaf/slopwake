@@ -26,15 +26,15 @@ The installer checks the digest, signature, and Gatekeeper, then installs to
 
 ## Use
 
-- Manual hold: 30 minutes, one hour, or eight hours.
-- Pause automatic holds: 30 minutes, one hour, or until resumed.
+- Manual hold for a chosen time.
+- Pause automatic holds for a while or until resumed.
 - Detection for Codex, Claude, and Cursor, desktop and CLI, each toggled
   separately.
 - Display sleep stays allowed unless you turn it off.
-- Battery cutoff: 5% to 30%, default 15%, or off.
+- Battery cutoff, or off.
 - Start at Login: opt-in.
 
-Automatic holds expire after 30 quiet minutes.
+Automatic holds expire after a quiet period.
 
 ## Privacy
 

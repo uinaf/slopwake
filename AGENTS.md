@@ -2,7 +2,7 @@
 
 ## Start
 
-- Require macOS 26+ and Xcode 26+.
+- Require full Xcode; `project.yml` sets the deployment target.
 - Run `make release-check` for docs-only changes. Run `make verify` for product,
   build, installer, release, or CI changes before handoff.
 - Edit `project.yml`; `Slopwake.xcodeproj` is generated.
