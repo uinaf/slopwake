@@ -1,6 +1,6 @@
 # Contributing
 
-Requires macOS 26+ and Xcode 26+.
+Requires full Xcode; [`project.yml`](project.yml) sets the deployment target.
 
 ```sh
 make project              # generate Slopwake.xcodeproj from project.yml
