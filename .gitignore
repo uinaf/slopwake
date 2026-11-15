@@ -8,3 +8,5 @@ dist/
 *.xcuserstate
 xcuserdata/
 Slopwake.xcodeproj/
+.worktrees/
+.claude/worktrees/
