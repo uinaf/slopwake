@@ -20,7 +20,7 @@
   `SlopwakeApp/`.
 - Keep signing and notarization credentials outside the repository; use them
   only at the release command boundary.
-- Keep the README banner on uinaf.dev, not in the repository.
+- Keep the README banner hosted on uinaf.dev.
 - `Tests/` pins detection, wake policy, child-process, and persistence
   behavior. Change a test only when that contract changes on purpose.
 
